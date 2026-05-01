@@ -374,9 +374,66 @@ export default function TodayPage() {
         })}
       </div>
 
-      {/* 2-column desktop layout */}
+      {/* 2-column desktop layout — briefing LEFT, tasks+captures RIGHT */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Left column: task list + recent captures */}
+        {/* Left column: AI Briefing */}
+        <div>
+          <div className="font-mono text-[10px] text-[#DC2A2A] uppercase tracking-[0.12em] font-semibold mb-3">
+            &#8212; AI Briefing
+          </div>
+          <div
+            className="bg-card border border-border rounded-[10px] overflow-hidden"
+            data-testid="briefing-card"
+          >
+            {briefingData?.generatedAt && (
+              <div className="px-5 py-2.5 border-b border-border bg-background/50">
+                <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-wider">
+                  Generated {formatDateShort(briefingData.generatedAt)}
+                </span>
+              </div>
+            )}
+            <div className="px-5 py-4">
+              {isBriefingLoading ? (
+                <div className="flex items-center gap-3 text-muted-foreground py-8 justify-center">
+                  <Loader2 size={18} className="animate-spin text-[#DC2A2A]" />
+                  <span className="font-mono text-sm">Loading briefing...</span>
+                </div>
+              ) : briefingError ? (
+                <div className="py-8 text-center space-y-3">
+                  <div className="text-muted-foreground text-sm">No briefing available yet.</div>
+                  <button
+                    onClick={handleRegenerate}
+                    disabled={isRegenerating}
+                    data-testid="btn-generate-first-briefing"
+                    className="font-mono text-xs text-[#DC2A2A] hover:text-[#A8201F] uppercase tracking-wider transition-colors"
+                  >
+                    {isRegenerating ? "Generating..." : "Generate now"}
+                  </button>
+                </div>
+              ) : briefingData?.markdown ? (
+                <div className="prose prose-sm prose-invert max-w-none" data-testid="briefing-markdown">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {briefingData.markdown}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <div className="py-8 text-center space-y-3">
+                  <div className="text-muted-foreground text-sm">No briefing for today yet.</div>
+                  <button
+                    onClick={handleRegenerate}
+                    disabled={isRegenerating}
+                    data-testid="btn-generate-briefing"
+                    className="font-mono text-xs text-[#DC2A2A] hover:text-[#A8201F] uppercase tracking-wider"
+                  >
+                    {isRegenerating ? "Generating..." : "Generate briefing"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right column: task list + recent captures */}
         <div className="flex flex-col gap-5 min-h-0">
           {/* Task list */}
           <div>
@@ -447,62 +504,6 @@ export default function TodayPage() {
           </div>
         </div>
 
-        {/* Right column: briefing card */}
-        <div>
-          <div className="font-mono text-[10px] text-[#DC2A2A] uppercase tracking-[0.12em] font-semibold mb-3">
-            &#8212; AI Briefing
-          </div>
-          <div
-            className="bg-card border border-border rounded-[10px] overflow-hidden"
-            data-testid="briefing-card"
-          >
-            {briefingData?.generatedAt && (
-              <div className="px-5 py-2.5 border-b border-border bg-background/50">
-                <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-wider">
-                  Generated {formatDateShort(briefingData.generatedAt)}
-                </span>
-              </div>
-            )}
-            <div className="px-5 py-4">
-              {isBriefingLoading ? (
-                <div className="flex items-center gap-3 text-muted-foreground py-8 justify-center">
-                  <Loader2 size={18} className="animate-spin text-[#DC2A2A]" />
-                  <span className="font-mono text-sm">Loading briefing...</span>
-                </div>
-              ) : briefingError ? (
-                <div className="py-8 text-center space-y-3">
-                  <div className="text-muted-foreground text-sm">No briefing available yet.</div>
-                  <button
-                    onClick={handleRegenerate}
-                    disabled={isRegenerating}
-                    data-testid="btn-generate-first-briefing"
-                    className="font-mono text-xs text-[#DC2A2A] hover:text-[#A8201F] uppercase tracking-wider transition-colors"
-                  >
-                    {isRegenerating ? "Generating..." : "Generate now"}
-                  </button>
-                </div>
-              ) : briefingData?.markdown ? (
-                <div className="prose prose-sm prose-invert max-w-none" data-testid="briefing-markdown">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {briefingData.markdown}
-                  </ReactMarkdown>
-                </div>
-              ) : (
-                <div className="py-8 text-center space-y-3">
-                  <div className="text-muted-foreground text-sm">No briefing for today yet.</div>
-                  <button
-                    onClick={handleRegenerate}
-                    disabled={isRegenerating}
-                    data-testid="btn-generate-briefing"
-                    className="font-mono text-xs text-[#DC2A2A] hover:text-[#A8201F] uppercase tracking-wider"
-                  >
-                    {isRegenerating ? "Generating..." : "Generate briefing"}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { Link } from "wouter";
+import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 
 export default function NotFound() {
@@ -14,7 +14,7 @@ export default function NotFound() {
         This page doesn&apos;t exist in the command center.
       </p>
       <Link
-        href="/"
+        to="/"
         data-testid="link-go-home"
         className="flex items-center gap-2 bg-card border border-border hover:border-muted-foreground text-foreground font-medium px-5 py-2.5 rounded-[7px] transition-colors"
       >

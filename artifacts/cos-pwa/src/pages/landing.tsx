@@ -1,4 +1,4 @@
-import { Link } from "wouter";
+import { Link } from "react-router-dom";
 import { ArrowRight, Mic, Brain, Users, Zap } from "lucide-react";
 
 export default function LandingPage() {
@@ -14,14 +14,14 @@ export default function LandingPage() {
         </div>
         <div className="flex items-center gap-3">
           <Link
-            href="/sign-in"
+            to="/sign-in"
             data-testid="link-sign-in"
             className="font-mono text-sm text-muted-foreground hover:text-foreground transition-colors uppercase tracking-wider"
           >
             Sign In
           </Link>
           <Link
-            href="/sign-up"
+            to="/sign-up"
             data-testid="link-sign-up"
             className="font-mono text-sm bg-[#DC2A2A] hover:bg-[#A8201F] text-white px-4 py-2 rounded-[7px] uppercase tracking-wider transition-colors"
           >
@@ -51,7 +51,7 @@ export default function LandingPage() {
 
         <div className="mt-10 flex items-center gap-4">
           <Link
-            href="/sign-up"
+            to="/sign-up"
             data-testid="cta-get-started"
             className="flex items-center gap-2 bg-[#DC2A2A] hover:bg-[#A8201F] text-white font-semibold px-6 py-3 rounded-[7px] transition-colors"
           >
@@ -59,7 +59,7 @@ export default function LandingPage() {
             <ArrowRight size={16} />
           </Link>
           <Link
-            href="/sign-in"
+            to="/sign-in"
             data-testid="cta-sign-in"
             className="flex items-center gap-2 bg-card border border-border hover:border-muted-foreground text-foreground font-medium px-6 py-3 rounded-[7px] transition-colors"
           >

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Switch, Route, Redirect, Router as WouterRouter } from "wouter";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ClerkProvider, SignIn, SignUp, Show } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
@@ -35,12 +35,6 @@ if (!clerkPubKey) {
 }
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-function stripBase(path: string): string {
-  return basePath && path.startsWith(basePath)
-    ? path.slice(basePath.length) || "/"
-    : path;
-}
 
 const clerkAppearance = {
   theme: shadcn,
@@ -93,7 +87,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     <>
       <Show when="signed-in">{children}</Show>
       <Show when="signed-out">
-        <Redirect to="/" />
+        <Navigate to="/" replace />
       </Show>
     </>
   );
@@ -103,7 +97,7 @@ function HomeRoute() {
   return (
     <>
       <Show when="signed-in">
-        <Redirect to="/talk" />
+        <Navigate to="/talk" replace />
       </Show>
       <Show when="signed-out">
         <LandingPage />
@@ -112,67 +106,96 @@ function HomeRoute() {
   );
 }
 
+function SignInPage() {
+  return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-12">
+      <SignIn
+        routing="path"
+        path={`${basePath}/sign-in`}
+        appearance={clerkAppearance}
+        signUpUrl={`${basePath}/sign-up`}
+      />
+    </div>
+  );
+}
+
+function SignUpPage() {
+  return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-12">
+      <SignUp
+        routing="path"
+        path={`${basePath}/sign-up`}
+        appearance={clerkAppearance}
+        signInUrl={`${basePath}/sign-in`}
+      />
+    </div>
+  );
+}
+
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={HomeRoute} />
-      <Route path="/sign-in/*?" component={() => (
-        <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-12">
-          <SignIn
-            routing="path"
-            path={`${basePath}/sign-in`}
-            appearance={clerkAppearance}
-            signUpUrl={`${basePath}/sign-up`}
-          />
-        </div>
-      )} />
-      <Route path="/sign-up/*?" component={() => (
-        <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-12">
-          <SignUp
-            routing="path"
-            path={`${basePath}/sign-up`}
-            appearance={clerkAppearance}
-            signInUrl={`${basePath}/sign-in`}
-          />
-        </div>
-      )} />
-      <Route path="/talk" component={() => (
-        <ProtectedRoute>
-          <AppShell activeTab="talk"><TalkPage /></AppShell>
-        </ProtectedRoute>
-      )} />
-      <Route path="/today" component={() => (
-        <ProtectedRoute>
-          <AppShell activeTab="today"><TodayPage /></AppShell>
-        </ProtectedRoute>
-      )} />
-      <Route path="/approvals" component={() => (
-        <ProtectedRoute>
-          <AppShell activeTab="approvals"><ApprovalsPage /></AppShell>
-        </ProtectedRoute>
-      )} />
-      <Route path="/inbox" component={() => (
-        <ProtectedRoute>
-          <AppShell activeTab="inbox"><InboxPage /></AppShell>
-        </ProtectedRoute>
-      )} />
-      <Route path="/team" component={() => (
-        <ProtectedRoute>
-          <AppShell activeTab="team"><TeamPage /></AppShell>
-        </ProtectedRoute>
-      )} />
-      <Route path="/projects" component={() => (
-        <ProtectedRoute>
-          <AppShell activeTab="projects"><ProjectsPage /></AppShell>
-        </ProtectedRoute>
-      )} />
-      <Route path="/insights" component={() => (
-        <ProtectedRoute>
-          <AppShell activeTab="insights"><InsightsPage /></AppShell>
-        </ProtectedRoute>
-      )} />
-      <Route component={NotFound} />
-    </Switch>
+    <Routes>
+      <Route path="/" element={<HomeRoute />} />
+      <Route path="/sign-in/*" element={<SignInPage />} />
+      <Route path="/sign-up/*" element={<SignUpPage />} />
+      <Route
+        path="/talk"
+        element={
+          <ProtectedRoute>
+            <AppShell activeTab="talk"><TalkPage /></AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/today"
+        element={
+          <ProtectedRoute>
+            <AppShell activeTab="today"><TodayPage /></AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/approvals"
+        element={
+          <ProtectedRoute>
+            <AppShell activeTab="approvals"><ApprovalsPage /></AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/inbox"
+        element={
+          <ProtectedRoute>
+            <AppShell activeTab="inbox"><InboxPage /></AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/team"
+        element={
+          <ProtectedRoute>
+            <AppShell activeTab="team"><TeamPage /></AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects"
+        element={
+          <ProtectedRoute>
+            <AppShell activeTab="projects"><ProjectsPage /></AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/insights"
+        element={
+          <ProtectedRoute>
+            <AppShell activeTab="insights"><InsightsPage /></AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 }
 
@@ -191,39 +214,24 @@ function App() {
   }, []);
 
   return (
-    <ClerkProvider
-      publishableKey={clerkPubKey}
-      proxyUrl={import.meta.env.VITE_CLERK_PROXY_URL}
-      routerPush={(to) => {
-        const stripped = stripBase(to);
-        window.history.pushState(null, "", to);
-        window.dispatchEvent(new PopStateEvent("popstate"));
-        void stripped;
-      }}
-      routerReplace={(to) => {
-        const stripped = stripBase(to);
-        window.history.replaceState(null, "", to);
-        window.dispatchEvent(new PopStateEvent("popstate"));
-        void stripped;
-      }}
-    >
-      <QueryClientProvider client={queryClient}>
-        <WouterRouter base={basePath}>
+    <BrowserRouter basename={basePath}>
+      <ClerkProvider publishableKey={clerkPubKey}>
+        <QueryClientProvider client={queryClient}>
           <Router />
-        </WouterRouter>
-        <Toaster
-          theme="dark"
-          position="top-right"
-          toastOptions={{
-            style: {
-              background: "#1C1C1C",
-              border: "1px solid #2A2A2A",
-              color: "#F4F1EA",
-            },
-          }}
-        />
-      </QueryClientProvider>
-    </ClerkProvider>
+          <Toaster
+            theme="dark"
+            position="top-right"
+            toastOptions={{
+              style: {
+                background: "#1C1C1C",
+                border: "1px solid #2A2A2A",
+                color: "#F4F1EA",
+              },
+            }}
+          />
+        </QueryClientProvider>
+      </ClerkProvider>
+    </BrowserRouter>
   );
 }
 

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { storageObjectUrl } from "@/lib/api-config";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Send, Mic, MicOff, Loader2, RefreshCw, Check, Pencil, X } from "lucide-react";
@@ -214,7 +215,7 @@ function VoiceMessageRow({ msg }: { msg: Message }) {
   const hasAudio = !!msg.audioObjectPath;
   const transcript = msg.content || undefined;
   const audioSrc = msg.audioObjectPath
-    ? `${window.location.origin}/api/storage/objects/${msg.audioObjectPath}`
+    ? storageObjectUrl(msg.audioObjectPath)
     : undefined;
 
   return (

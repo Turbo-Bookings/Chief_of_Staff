@@ -1,5 +1,5 @@
 import React from "react";
-import { Link } from "wouter";
+import { Link } from "react-router-dom";
 import { useUser, useClerk } from "@clerk/react";
 import {
   Mic2,
@@ -43,6 +43,8 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
   const { signOut } = useClerk();
 
   const sections = ["Command", "Operations", "Intelligence"];
+  const displayName = user?.firstName || user?.fullName || "Selmen";
+  const displayEmail = user?.emailAddresses?.[0]?.emailAddress ?? "";
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -54,14 +56,18 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
             Take<span className="text-[#DC2A2A]">overs</span>
           </div>
           <div
-            className="mt-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
-            data-testid="sidebar-greeting"
+            className="mt-3 font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground"
           >
-            Chief of Staff
+            Logged in as
           </div>
-          <div className="text-sm font-semibold text-foreground mt-0.5">
-            {user?.firstName || user?.fullName || "Selmen"}
+          <div className="text-[13px] font-semibold text-foreground mt-0.5 truncate" data-testid="sidebar-user-name">
+            {displayName}
           </div>
+          {displayEmail && (
+            <div className="font-mono text-[9px] text-muted-foreground mt-0.5 truncate" data-testid="sidebar-user-email">
+              {displayEmail}
+            </div>
+          )}
         </div>
 
         {/* Navigation */}
@@ -80,7 +86,7 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
                   return (
                     <Link
                       key={item.id}
-                      href={item.href}
+                      to={item.href}
                       data-testid={`nav-${item.id}`}
                       className={`relative flex items-center gap-2.5 px-3 py-[9px] rounded-[7px] text-[13px] font-medium transition-colors cursor-pointer ${
                         isActive
@@ -152,7 +158,7 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
               return (
                 <Link
                   key={item.id}
-                  href={item.href}
+                  to={item.href}
                   data-testid={`mobile-nav-${item.id}`}
                   className={`relative flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-colors ${
                     isActive ? "text-[#DC2A2A]" : "text-muted-foreground"
