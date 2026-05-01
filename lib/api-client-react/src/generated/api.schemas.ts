@@ -5,8 +5,29 @@
  * Takeovers CoS API specification
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * ok when all required services healthy; degraded when any in error state
+ */
+export type HealthStatusStatus =
+  (typeof HealthStatusStatus)[keyof typeof HealthStatusStatus];
+
+export const HealthStatusStatus = {
+  ok: "ok",
+  degraded: "degraded",
+} as const;
+
+/**
+ * Per-service health state map
+ */
+export type HealthStatusServices = {
+  [key: string]: "ok" | "error" | "not_configured";
+};
+
 export interface HealthStatus {
-  status: string;
+  /** ok when all required services healthy; degraded when any in error state */
+  status: HealthStatusStatus;
+  /** Per-service health state map */
+  services: HealthStatusServices;
 }
 
 export interface ErrorEnvelope {

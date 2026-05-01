@@ -55,7 +55,10 @@ type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * Returns server health status
+ * Returns server health status. Reports postgres and redis service states.
+Returns 200 when all services are ok or not_configured (Redis is optional).
+Returns 503 when any service is in error state.
+
  * @summary Health check
  */
 export const getHealthCheckUrl = () => {
@@ -77,7 +80,7 @@ export const getHealthCheckQueryKey = () => {
 
 export const getHealthCheckQueryOptions = <
   TData = Awaited<ReturnType<typeof healthCheck>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HealthStatus>,
 >(options?: {
   query?: UseQueryOptions<
     Awaited<ReturnType<typeof healthCheck>>,
@@ -104,7 +107,7 @@ export const getHealthCheckQueryOptions = <
 export type HealthCheckQueryResult = NonNullable<
   Awaited<ReturnType<typeof healthCheck>>
 >;
-export type HealthCheckQueryError = ErrorType<unknown>;
+export type HealthCheckQueryError = ErrorType<HealthStatus>;
 
 /**
  * @summary Health check
@@ -112,7 +115,7 @@ export type HealthCheckQueryError = ErrorType<unknown>;
 
 export function useHealthCheck<
   TData = Awaited<ReturnType<typeof healthCheck>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HealthStatus>,
 >(options?: {
   query?: UseQueryOptions<
     Awaited<ReturnType<typeof healthCheck>>,
@@ -152,7 +155,7 @@ export const getHealthCheckAltQueryKey = () => {
 
 export const getHealthCheckAltQueryOptions = <
   TData = Awaited<ReturnType<typeof healthCheckAlt>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HealthStatus>,
 >(options?: {
   query?: UseQueryOptions<
     Awaited<ReturnType<typeof healthCheckAlt>>,
@@ -179,7 +182,7 @@ export const getHealthCheckAltQueryOptions = <
 export type HealthCheckAltQueryResult = NonNullable<
   Awaited<ReturnType<typeof healthCheckAlt>>
 >;
-export type HealthCheckAltQueryError = ErrorType<unknown>;
+export type HealthCheckAltQueryError = ErrorType<HealthStatus>;
 
 /**
  * @summary Health check (alternate path)
@@ -187,7 +190,7 @@ export type HealthCheckAltQueryError = ErrorType<unknown>;
 
 export function useHealthCheckAlt<
   TData = Awaited<ReturnType<typeof healthCheckAlt>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HealthStatus>,
 >(options?: {
   query?: UseQueryOptions<
     Awaited<ReturnType<typeof healthCheckAlt>>,

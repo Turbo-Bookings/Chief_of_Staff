@@ -8,18 +8,35 @@
 import * as zod from "zod";
 
 /**
- * Returns server health status
+ * Returns server health status. Reports postgres and redis service states.
+Returns 200 when all services are ok or not_configured (Redis is optional).
+Returns 503 when any service is in error state.
+
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
-  status: zod.string(),
+  status: zod
+    .enum(["ok", "degraded"])
+    .describe(
+      "ok when all required services healthy; degraded when any in error state",
+    ),
+  services: zod
+    .record(zod.string(), zod.enum(["ok", "error", "not_configured"]))
+    .describe("Per-service health state map"),
 });
 
 /**
  * @summary Health check (alternate path)
  */
 export const HealthCheckAltResponse = zod.object({
-  status: zod.string(),
+  status: zod
+    .enum(["ok", "degraded"])
+    .describe(
+      "ok when all required services healthy; degraded when any in error state",
+    ),
+  services: zod
+    .record(zod.string(), zod.enum(["ok", "error", "not_configured"]))
+    .describe("Per-service health state map"),
 });
 
 /**

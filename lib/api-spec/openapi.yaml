@@ -38,10 +38,19 @@ paths:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
+      description: |
+        Returns server health status. Reports postgres and redis service states.
+        Returns 200 when all services are ok or not_configured (Redis is optional).
+        Returns 503 when any service is in error state.
       responses:
         "200":
-          description: Healthy
+          description: Healthy or partially configured (redis not_configured is acceptable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        "503":
+          description: Degraded — one or more services in error state
           content:
             application/json:
               schema:
@@ -55,6 +64,12 @@ paths:
       responses:
         "200":
           description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        "503":
+          description: Degraded
           content:
             application/json:
               schema:
@@ -742,11 +757,21 @@ components:
   schemas:
     HealthStatus:
       type: object
+      required: [status, services]
       properties:
         status:
           type: string
-      required:
-        - status
+          enum: [ok, degraded]
+          description: ok when all required services healthy; degraded when any in error state
+        services:
+          type: object
+          description: Per-service health state map
+          additionalProperties:
+            type: string
+            enum: [ok, error, not_configured]
+          example:
+            postgres: ok
+            redis: not_configured
 
     ErrorEnvelope:
       type: object

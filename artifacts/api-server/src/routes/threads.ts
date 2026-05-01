@@ -61,7 +61,7 @@ router.get("/threads/principal", async (_req, res): Promise<void> => {
       messageCount: principalThread.messageCount ?? null,
       createdAt: principalThread.createdAt.toISOString(),
     },
-    messages: messages.reverse().map(serializeMessage),
+    messages: messages.map(serializeMessage),
   });
 });
 
@@ -125,7 +125,7 @@ router.get("/threads/:id/messages", async (req, res): Promise<void> => {
     .orderBy(desc(messagesTable.createdAt))
     .limit(limit);
 
-  res.json(messages.reverse().map(serializeMessage));
+  res.json(messages.map(serializeMessage));
 });
 
 export default router;
