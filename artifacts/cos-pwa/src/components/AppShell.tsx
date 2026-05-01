@@ -122,7 +122,7 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
             Agent online
           </div>
           <button
-            onClick={() => signOut({ redirectUrl: "/" })}
+            onClick={() => signOut({ redirectUrl: import.meta.env.BASE_URL })}
             data-testid="btn-sign-out"
             className="flex items-center gap-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer font-mono"
           >
@@ -150,7 +150,7 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
         </div>
 
         {/* Mobile bottom tab bar */}
-        <div className="sm:hidden shrink-0 bg-card border-t border-border">
+        <div className="sm:hidden shrink-0 bg-card border-t border-border" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
           <nav className="flex items-center justify-around px-1 py-1.5">
             {NAV_ITEMS.filter((item) => MOBILE_TABS.includes(item.id)).map((item) => {
               const isActive = activeTab === item.id;
