@@ -1,0 +1,21 @@
+I'm building a personal Chief of Staff AI agent called Takeovers CoS. It's a standalone product, not part of the customer-facing Takeovers Rentals website. This is for me (Selmen, CEO) to manage my team, inbox, projects, and day.
+I've attached the full architecture spec, database schema, environment setup guide, and Phase 1 build doc. I've also attached an HTML mockup showing the final UI design — use it as the visual reference for colors, typography, layout, and component structure.
+What I want you to do first, before writing any code:
+
+Read all attached documents end to end. Do not skim.
+Read the HTML mockup file and study the design system — color tokens, typography, spacing, the seven-tab layout, the dark desktop theme, the light mobile theme.
+Confirm back to me in plain English: what you understand the product to be, what Phase 1 specifically builds, what's explicitly out of scope for Phase 1, and which third-party services Phase 1 depends on.
+List any questions you have about the spec before we start. I'd rather answer ten questions now than fix ten wrong assumptions later.
+Do not start coding until I confirm your understanding is correct.
+
+Stack to use (already decided, do not propose alternatives):
+
+Frontend: React + Vite + TypeScript + Tailwind + shadcn/ui, built as a PWA
+Backend: Node + Express + TypeScript
+Database: PostgreSQL with Drizzle ORM
+Job queue: BullMQ + Redis
+Hosting: Replit for both staging and production
+
+Phase 1 scope (per Document 04): PWA shell with all seven tabs as empty containers, authentication, the capture flow (text and voice via Whisper), and the database tables required to support capture. No team management, no email, no projects, no insights yet — those come in later phases.
+Environments: Staging deploys to staging.cos.takeoversrentals.com. Production deploys to cos.takeoversrentals.com. Build everything on staging first. We don't touch production until Phase 1 passes all 16 acceptance criteria in Document 04.
+Wait for my confirmation before writing code.
