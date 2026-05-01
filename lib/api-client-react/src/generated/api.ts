@@ -41,6 +41,8 @@ import type {
   UpdateTaskBody,
   UploadUrlRequest,
   UploadUrlResponse,
+  VoiceCaptureStarted,
+  VoiceCaptureStatus,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -204,8 +206,8 @@ export function useHealthCheckAlt<
 }
 
 /**
- * Accepts raw text input. Enqueues a job to parse with Claude.
-Returns a job ID.
+ * Accepts raw text input. Creates a message row immediately and enqueues
+a Claude parse job. Returns messageId and jobId.
 
  * @summary Submit a text capture
  */
@@ -293,9 +295,9 @@ export const useSubmitCapture = <
 };
 
 /**
- * Accepts an audio file (object storage path) for voice capture.
-Enqueues a job to transcribe via Whisper and parse with Claude.
-Returns a job ID.
+ * Accepts an audio file (object storage path). Creates a message row
+immediately with status transcribing and enqueues a Whisper+Claude job.
+Returns messageId and status 'transcribing'.
 
  * @summary Submit a voice capture
  */
@@ -306,8 +308,8 @@ export const getSubmitVoiceCaptureUrl = () => {
 export const submitVoiceCapture = async (
   submitVoiceCaptureBody: SubmitVoiceCaptureBody,
   options?: RequestInit,
-): Promise<CaptureJobResponse> => {
-  return customFetch<CaptureJobResponse>(getSubmitVoiceCaptureUrl(), {
+): Promise<VoiceCaptureStarted> => {
+  return customFetch<VoiceCaptureStarted>(getSubmitVoiceCaptureUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
@@ -383,23 +385,27 @@ export const useSubmitVoiceCapture = <
 };
 
 /**
- * @summary Get the status of a voice capture job
+ * Returns the current transcription/parse status for a voice message.
+Status: transcribing (no content_text yet) → parsed (transcribed, not yet claude-parsed)
+→ done (claude_parse available).
+
+ * @summary Get voice capture status by message ID
  */
-export const getGetVoiceCaptureStatusUrl = (id: string) => {
+export const getGetVoiceCaptureStatusUrl = (id: number) => {
   return `/api/capture/voice/${id}`;
 };
 
 export const getVoiceCaptureStatus = async (
-  id: string,
+  id: number,
   options?: RequestInit,
-): Promise<CaptureJobStatus> => {
-  return customFetch<CaptureJobStatus>(getGetVoiceCaptureStatusUrl(id), {
+): Promise<VoiceCaptureStatus> => {
+  return customFetch<VoiceCaptureStatus>(getGetVoiceCaptureStatusUrl(id), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetVoiceCaptureStatusQueryKey = (id: string) => {
+export const getGetVoiceCaptureStatusQueryKey = (id: number) => {
   return [`/api/capture/voice/${id}`] as const;
 };
 
@@ -407,7 +413,7 @@ export const getGetVoiceCaptureStatusQueryOptions = <
   TData = Awaited<ReturnType<typeof getVoiceCaptureStatus>>,
   TError = ErrorType<ErrorEnvelope>,
 >(
-  id: string,
+  id: number,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getVoiceCaptureStatus>>,
@@ -444,14 +450,14 @@ export type GetVoiceCaptureStatusQueryResult = NonNullable<
 export type GetVoiceCaptureStatusQueryError = ErrorType<ErrorEnvelope>;
 
 /**
- * @summary Get the status of a voice capture job
+ * @summary Get voice capture status by message ID
  */
 
 export function useGetVoiceCaptureStatus<
   TData = Awaited<ReturnType<typeof getVoiceCaptureStatus>>,
   TError = ErrorType<ErrorEnvelope>,
 >(
-  id: string,
+  id: number,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getVoiceCaptureStatus>>,

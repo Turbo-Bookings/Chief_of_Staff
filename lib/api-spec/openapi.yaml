@@ -66,8 +66,8 @@ paths:
       tags: [capture]
       summary: Submit a text capture
       description: |
-        Accepts raw text input. Enqueues a job to parse with Claude.
-        Returns a job ID.
+        Accepts raw text input. Creates a message row immediately and enqueues
+        a Claude parse job. Returns messageId and jobId.
       requestBody:
         required: true
         content:
@@ -76,7 +76,7 @@ paths:
               $ref: "#/components/schemas/SubmitCaptureBody"
       responses:
         "202":
-          description: Capture job enqueued
+          description: Capture enqueued — message created
           content:
             application/json:
               schema:
@@ -94,9 +94,9 @@ paths:
       tags: [capture]
       summary: Submit a voice capture
       description: |
-        Accepts an audio file (object storage path) for voice capture.
-        Enqueues a job to transcribe via Whisper and parse with Claude.
-        Returns a job ID.
+        Accepts an audio file (object storage path). Creates a message row
+        immediately with status transcribing and enqueues a Whisper+Claude job.
+        Returns messageId and status 'transcribing'.
       requestBody:
         required: true
         content:
@@ -105,11 +105,11 @@ paths:
               $ref: "#/components/schemas/SubmitVoiceCaptureBody"
       responses:
         "202":
-          description: Voice capture job enqueued
+          description: Voice capture started — message created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CaptureJobResponse"
+                $ref: "#/components/schemas/VoiceCaptureStarted"
         "400":
           description: Invalid request
           content:
@@ -121,22 +121,27 @@ paths:
     get:
       operationId: getVoiceCaptureStatus
       tags: [capture]
-      summary: Get the status of a voice capture job
+      summary: Get voice capture status by message ID
+      description: |
+        Returns the current transcription/parse status for a voice message.
+        Status: transcribing (no content_text yet) → parsed (transcribed, not yet claude-parsed)
+        → done (claude_parse available).
       parameters:
         - name: id
           in: path
           required: true
           schema:
-            type: string
+            type: integer
+          description: Message ID returned from POST /capture/voice
       responses:
         "200":
-          description: Job status
+          description: Voice capture status
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CaptureJobStatus"
+                $ref: "#/components/schemas/VoiceCaptureStatus"
         "404":
-          description: Job not found
+          description: Message not found
           content:
             application/json:
               schema:
@@ -777,13 +782,51 @@ components:
 
     CaptureJobResponse:
       type: object
-      required: [jobId, status]
+      required: [messageId, jobId, status]
       properties:
+        messageId:
+          type: integer
+          description: ID of the message row created immediately
         jobId:
           type: string
+          description: BullMQ job ID for tracking
         status:
           type: string
           enum: [queued, processing, done, failed]
+
+    VoiceCaptureStarted:
+      type: object
+      required: [messageId, status]
+      properties:
+        messageId:
+          type: integer
+          description: ID of the message row created immediately
+        status:
+          type: string
+          enum: [transcribing]
+          description: Always 'transcribing' at submission time
+
+    VoiceCaptureStatus:
+      type: object
+      required: [messageId, status]
+      properties:
+        messageId:
+          type: integer
+        status:
+          type: string
+          enum: [transcribing, parsed, done]
+          description: |
+            transcribing — Whisper job pending, no transcript yet.
+            parsed — transcript available, Claude parse pending.
+            done — transcript and claudeParse both available.
+        transcript:
+          type: ["string", "null"]
+          description: Whisper transcript text (null while transcribing)
+        transcriptionConfidence:
+          type: ["number", "null"]
+          description: Whisper confidence 0.0–1.0 (null while transcribing)
+        claudeParse:
+          $ref: "#/components/schemas/ParsedEntities"
 
     CaptureJobStatus:
       type: object
@@ -791,6 +834,8 @@ components:
       properties:
         jobId:
           type: string
+        messageId:
+          type: ["integer", "null"]
         status:
           type: string
           enum: [queued, processing, done, failed]

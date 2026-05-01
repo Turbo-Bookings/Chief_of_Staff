@@ -10,6 +10,7 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import healthRouter from "./routes/health";
+import { principalAuthMiddleware } from "./middlewares/principalAuth";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -52,6 +53,8 @@ app.use(
 app.use(healthRouter);
 
 const API_PUBLIC_PATHS = [
+  "/health",
+  "/healthz",
   "/webhooks/twilio/sms-inbound",
   "/webhooks/twilio/sms-status",
   "/twilio/incoming",
@@ -63,6 +66,13 @@ app.use("/api", (req: Request, res: Response, next: NextFunction) => {
     return next();
   }
   return requireAuth()(req, res, next);
+});
+
+app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+  if (API_PUBLIC_PATHS.some((p) => req.path === p || req.path.startsWith(p + "/"))) {
+    return next();
+  }
+  return principalAuthMiddleware(req, res, next);
 });
 
 app.use("/api", router);

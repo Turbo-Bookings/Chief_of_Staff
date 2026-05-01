@@ -1,12 +1,16 @@
 import { Router, type IRouter } from "express";
 import { db, teamMembersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { GetTeamMemberParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
 router.get("/team", async (_req, res): Promise<void> => {
-  const members = await db.select().from(teamMembersTable).orderBy(teamMembersTable.name);
+  const members = await db
+    .select()
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.isActive, true))
+    .orderBy(asc(teamMembersTable.name));
   res.json(members.map((m) => ({
     id: m.id,
     name: m.name,

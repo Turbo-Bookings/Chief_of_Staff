@@ -23,8 +23,8 @@ export const HealthCheckAltResponse = zod.object({
 });
 
 /**
- * Accepts raw text input. Enqueues a job to parse with Claude.
-Returns a job ID.
+ * Accepts raw text input. Creates a message row immediately and enqueues
+a Claude parse job. Returns messageId and jobId.
 
  * @summary Submit a text capture
  */
@@ -46,9 +46,9 @@ export const SubmitCaptureBody = zod
   .describe("Either audioObjectPath or text must be provided");
 
 /**
- * Accepts an audio file (object storage path) for voice capture.
-Enqueues a job to transcribe via Whisper and parse with Claude.
-Returns a job ID.
+ * Accepts an audio file (object storage path). Creates a message row
+immediately with status transcribing and enqueues a Whisper+Claude job.
+Returns messageId and status 'transcribing'.
 
  * @summary Submit a voice capture
  */
@@ -63,17 +63,34 @@ export const SubmitVoiceCaptureBody = zod.object({
 });
 
 /**
- * @summary Get the status of a voice capture job
+ * Returns the current transcription/parse status for a voice message.
+Status: transcribing (no content_text yet) → parsed (transcribed, not yet claude-parsed)
+→ done (claude_parse available).
+
+ * @summary Get voice capture status by message ID
  */
 export const GetVoiceCaptureStatusParams = zod.object({
-  id: zod.coerce.string(),
+  id: zod.coerce
+    .number()
+    .describe("Message ID returned from POST \/capture\/voice"),
 });
 
 export const GetVoiceCaptureStatusResponse = zod.object({
-  jobId: zod.string(),
-  status: zod.enum(["queued", "processing", "done", "failed"]),
-  transcript: zod.string().nullish(),
-  parsedEntities: zod
+  messageId: zod.number(),
+  status: zod
+    .enum(["transcribing", "parsed", "done"])
+    .describe(
+      "transcribing — Whisper job pending, no transcript yet.\nparsed — transcript available, Claude parse pending.\ndone — transcript and claudeParse both available.\n",
+    ),
+  transcript: zod
+    .string()
+    .nullish()
+    .describe("Whisper transcript text (null while transcribing)"),
+  transcriptionConfidence: zod
+    .number()
+    .nullish()
+    .describe("Whisper confidence 0.0–1.0 (null while transcribing)"),
+  claudeParse: zod
     .object({
       type: zod
         .enum([
@@ -99,7 +116,6 @@ export const GetVoiceCaptureStatusResponse = zod.object({
       escalations: zod.array(zod.object({}).passthrough()).optional(),
     })
     .optional(),
-  error: zod.string().nullish(),
 });
 
 /**
@@ -111,6 +127,7 @@ export const GetCaptureJobStatusParams = zod.object({
 
 export const GetCaptureJobStatusResponse = zod.object({
   jobId: zod.string(),
+  messageId: zod.number().nullish(),
   status: zod.enum(["queued", "processing", "done", "failed"]),
   transcript: zod.string().nullish(),
   parsedEntities: zod

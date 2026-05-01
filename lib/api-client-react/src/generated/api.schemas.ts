@@ -55,18 +55,43 @@ export const CaptureJobResponseStatus = {
 } as const;
 
 export interface CaptureJobResponse {
+  /** ID of the message row created immediately */
+  messageId: number;
+  /** BullMQ job ID for tracking */
   jobId: string;
   status: CaptureJobResponseStatus;
 }
 
-export type CaptureJobStatusStatus =
-  (typeof CaptureJobStatusStatus)[keyof typeof CaptureJobStatusStatus];
+/**
+ * Always 'transcribing' at submission time
+ */
+export type VoiceCaptureStartedStatus =
+  (typeof VoiceCaptureStartedStatus)[keyof typeof VoiceCaptureStartedStatus];
 
-export const CaptureJobStatusStatus = {
-  queued: "queued",
-  processing: "processing",
+export const VoiceCaptureStartedStatus = {
+  transcribing: "transcribing",
+} as const;
+
+export interface VoiceCaptureStarted {
+  /** ID of the message row created immediately */
+  messageId: number;
+  /** Always 'transcribing' at submission time */
+  status: VoiceCaptureStartedStatus;
+}
+
+/**
+ * transcribing — Whisper job pending, no transcript yet.
+parsed — transcript available, Claude parse pending.
+done — transcript and claudeParse both available.
+
+ */
+export type VoiceCaptureStatusStatus =
+  (typeof VoiceCaptureStatusStatus)[keyof typeof VoiceCaptureStatusStatus];
+
+export const VoiceCaptureStatusStatus = {
+  transcribing: "transcribing",
+  parsed: "parsed",
   done: "done",
-  failed: "failed",
 } as const;
 
 export type ParsedEntitiesType =
@@ -123,8 +148,40 @@ export interface ParsedEntities {
   escalations?: ParsedEntitiesEscalationsItem[];
 }
 
+export interface VoiceCaptureStatus {
+  messageId: number;
+  /** transcribing — Whisper job pending, no transcript yet.
+parsed — transcript available, Claude parse pending.
+done — transcript and claudeParse both available.
+ */
+  status: VoiceCaptureStatusStatus;
+  /**
+   * Whisper transcript text (null while transcribing)
+   * @nullable
+   */
+  transcript?: string | null;
+  /**
+   * Whisper confidence 0.0–1.0 (null while transcribing)
+   * @nullable
+   */
+  transcriptionConfidence?: number | null;
+  claudeParse?: ParsedEntities;
+}
+
+export type CaptureJobStatusStatus =
+  (typeof CaptureJobStatusStatus)[keyof typeof CaptureJobStatusStatus];
+
+export const CaptureJobStatusStatus = {
+  queued: "queued",
+  processing: "processing",
+  done: "done",
+  failed: "failed",
+} as const;
+
 export interface CaptureJobStatus {
   jobId: string;
+  /** @nullable */
+  messageId?: number | null;
   status: CaptureJobStatusStatus;
   /** @nullable */
   transcript?: string | null;
