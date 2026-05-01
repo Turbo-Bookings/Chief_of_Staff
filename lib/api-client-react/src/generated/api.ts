@@ -24,13 +24,19 @@ import type {
   CreateTaskBody,
   ErrorEnvelope,
   GetThreadMessagesParams,
+  GetTodayRecentCapturesParams,
+  GetTodayTasksParams,
   HealthStatus,
   ListTasksParams,
   Message,
+  Principal,
   SubmitCaptureBody,
+  SubmitVoiceCaptureBody,
   Task,
   TeamMember,
   Thread,
+  ThreadWithMessages,
+  UpdatePrincipalBody,
   UpdateSettingsBody,
   UpdateTaskBody,
   UploadUrlRequest,
@@ -51,7 +57,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * @summary Health check
  */
 export const getHealthCheckUrl = () => {
-  return `/api/healthz`;
+  return `/api/health`;
 };
 
 export const healthCheck = async (
@@ -64,7 +70,7 @@ export const healthCheck = async (
 };
 
 export const getHealthCheckQueryKey = () => {
-  return [`/api/healthz`] as const;
+  return [`/api/health`] as const;
 };
 
 export const getHealthCheckQueryOptions = <
@@ -123,10 +129,85 @@ export function useHealthCheck<
 }
 
 /**
- * Accepts audio file path (from object storage) or raw text. Enqueues
-a job to transcribe (if audio) and parse with Claude. Returns a job ID.
+ * @summary Health check (alternate path)
+ */
+export const getHealthCheckAltUrl = () => {
+  return `/api/healthz`;
+};
 
- * @summary Submit a voice or text capture
+export const healthCheckAlt = async (
+  options?: RequestInit,
+): Promise<HealthStatus> => {
+  return customFetch<HealthStatus>(getHealthCheckAltUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getHealthCheckAltQueryKey = () => {
+  return [`/api/healthz`] as const;
+};
+
+export const getHealthCheckAltQueryOptions = <
+  TData = Awaited<ReturnType<typeof healthCheckAlt>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof healthCheckAlt>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getHealthCheckAltQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof healthCheckAlt>>> = ({
+    signal,
+  }) => healthCheckAlt({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof healthCheckAlt>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type HealthCheckAltQueryResult = NonNullable<
+  Awaited<ReturnType<typeof healthCheckAlt>>
+>;
+export type HealthCheckAltQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Health check (alternate path)
+ */
+
+export function useHealthCheckAlt<
+  TData = Awaited<ReturnType<typeof healthCheckAlt>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof healthCheckAlt>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getHealthCheckAltQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Accepts raw text input. Enqueues a job to parse with Claude.
+Returns a job ID.
+
+ * @summary Submit a text capture
  */
 export const getSubmitCaptureUrl = () => {
   return `/api/capture`;
@@ -189,7 +270,7 @@ export type SubmitCaptureMutationBody = BodyType<SubmitCaptureBody>;
 export type SubmitCaptureMutationError = ErrorType<ErrorEnvelope>;
 
 /**
- * @summary Submit a voice or text capture
+ * @summary Submit a text capture
  */
 export const useSubmitCapture = <
   TError = ErrorType<ErrorEnvelope>,
@@ -212,7 +293,185 @@ export const useSubmitCapture = <
 };
 
 /**
- * @summary Get the status of a capture job
+ * Accepts an audio file (object storage path) for voice capture.
+Enqueues a job to transcribe via Whisper and parse with Claude.
+Returns a job ID.
+
+ * @summary Submit a voice capture
+ */
+export const getSubmitVoiceCaptureUrl = () => {
+  return `/api/capture/voice`;
+};
+
+export const submitVoiceCapture = async (
+  submitVoiceCaptureBody: SubmitVoiceCaptureBody,
+  options?: RequestInit,
+): Promise<CaptureJobResponse> => {
+  return customFetch<CaptureJobResponse>(getSubmitVoiceCaptureUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(submitVoiceCaptureBody),
+  });
+};
+
+export const getSubmitVoiceCaptureMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitVoiceCapture>>,
+    TError,
+    { data: BodyType<SubmitVoiceCaptureBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof submitVoiceCapture>>,
+  TError,
+  { data: BodyType<SubmitVoiceCaptureBody> },
+  TContext
+> => {
+  const mutationKey = ["submitVoiceCapture"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof submitVoiceCapture>>,
+    { data: BodyType<SubmitVoiceCaptureBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return submitVoiceCapture(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SubmitVoiceCaptureMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitVoiceCapture>>
+>;
+export type SubmitVoiceCaptureMutationBody = BodyType<SubmitVoiceCaptureBody>;
+export type SubmitVoiceCaptureMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Submit a voice capture
+ */
+export const useSubmitVoiceCapture = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitVoiceCapture>>,
+    TError,
+    { data: BodyType<SubmitVoiceCaptureBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof submitVoiceCapture>>,
+  TError,
+  { data: BodyType<SubmitVoiceCaptureBody> },
+  TContext
+> => {
+  return useMutation(getSubmitVoiceCaptureMutationOptions(options));
+};
+
+/**
+ * @summary Get the status of a voice capture job
+ */
+export const getGetVoiceCaptureStatusUrl = (id: string) => {
+  return `/api/capture/voice/${id}`;
+};
+
+export const getVoiceCaptureStatus = async (
+  id: string,
+  options?: RequestInit,
+): Promise<CaptureJobStatus> => {
+  return customFetch<CaptureJobStatus>(getGetVoiceCaptureStatusUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetVoiceCaptureStatusQueryKey = (id: string) => {
+  return [`/api/capture/voice/${id}`] as const;
+};
+
+export const getGetVoiceCaptureStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getVoiceCaptureStatus>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getVoiceCaptureStatus>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetVoiceCaptureStatusQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getVoiceCaptureStatus>>
+  > = ({ signal }) => getVoiceCaptureStatus(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getVoiceCaptureStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetVoiceCaptureStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getVoiceCaptureStatus>>
+>;
+export type GetVoiceCaptureStatusQueryError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Get the status of a voice capture job
+ */
+
+export function useGetVoiceCaptureStatus<
+  TData = Awaited<ReturnType<typeof getVoiceCaptureStatus>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getVoiceCaptureStatus>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetVoiceCaptureStatusQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get the status of a capture job (legacy path)
  */
 export const getGetCaptureJobStatusUrl = (jobId: string) => {
   return `/api/capture/${jobId}/status`;
@@ -273,7 +532,7 @@ export type GetCaptureJobStatusQueryResult = NonNullable<
 export type GetCaptureJobStatusQueryError = ErrorType<ErrorEnvelope>;
 
 /**
- * @summary Get the status of a capture job
+ * @summary Get the status of a capture job (legacy path)
  */
 
 export function useGetCaptureJobStatus<
@@ -300,8 +559,280 @@ export function useGetCaptureJobStatus<
 }
 
 /**
+ * Returns the current day's brief (morning or evening), generating if needed
+ * @summary Get today's brief
+ */
+export const getGetTodayBriefUrl = () => {
+  return `/api/today/brief`;
+};
+
+export const getTodayBrief = async (
+  options?: RequestInit,
+): Promise<Briefing> => {
+  return customFetch<Briefing>(getGetTodayBriefUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTodayBriefQueryKey = () => {
+  return [`/api/today/brief`] as const;
+};
+
+export const getGetTodayBriefQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTodayBrief>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getTodayBrief>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetTodayBriefQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getTodayBrief>>> = ({
+    signal,
+  }) => getTodayBrief({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTodayBrief>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTodayBriefQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTodayBrief>>
+>;
+export type GetTodayBriefQueryError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Get today's brief
+ */
+
+export function useGetTodayBrief<
+  TData = Awaited<ReturnType<typeof getTodayBrief>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getTodayBrief>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTodayBriefQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns tasks owned by the principal, sorted by priority and due date
+ * @summary Get prioritized task list for today
+ */
+export const getGetTodayTasksUrl = (params?: GetTodayTasksParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/today/tasks?${stringifiedParams}`
+    : `/api/today/tasks`;
+};
+
+export const getTodayTasks = async (
+  params?: GetTodayTasksParams,
+  options?: RequestInit,
+): Promise<Task[]> => {
+  return customFetch<Task[]>(getGetTodayTasksUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTodayTasksQueryKey = (params?: GetTodayTasksParams) => {
+  return [`/api/today/tasks`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetTodayTasksQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTodayTasks>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetTodayTasksParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTodayTasks>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetTodayTasksQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getTodayTasks>>> = ({
+    signal,
+  }) => getTodayTasks(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTodayTasks>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTodayTasksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTodayTasks>>
+>;
+export type GetTodayTasksQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get prioritized task list for today
+ */
+
+export function useGetTodayTasks<
+  TData = Awaited<ReturnType<typeof getTodayTasks>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetTodayTasksParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTodayTasks>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTodayTasksQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns the last 20 captured messages (voice + text) for quick review
+ * @summary Get recent captures stream
+ */
+export const getGetTodayRecentCapturesUrl = (
+  params?: GetTodayRecentCapturesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/today/recent-captures?${stringifiedParams}`
+    : `/api/today/recent-captures`;
+};
+
+export const getTodayRecentCaptures = async (
+  params?: GetTodayRecentCapturesParams,
+  options?: RequestInit,
+): Promise<Message[]> => {
+  return customFetch<Message[]>(getGetTodayRecentCapturesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTodayRecentCapturesQueryKey = (
+  params?: GetTodayRecentCapturesParams,
+) => {
+  return [`/api/today/recent-captures`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetTodayRecentCapturesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTodayRecentCaptures>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetTodayRecentCapturesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTodayRecentCaptures>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetTodayRecentCapturesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getTodayRecentCaptures>>
+  > = ({ signal }) =>
+    getTodayRecentCaptures(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTodayRecentCaptures>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTodayRecentCapturesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTodayRecentCaptures>>
+>;
+export type GetTodayRecentCapturesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get recent captures stream
+ */
+
+export function useGetTodayRecentCaptures<
+  TData = Awaited<ReturnType<typeof getTodayRecentCaptures>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetTodayRecentCapturesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTodayRecentCaptures>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTodayRecentCapturesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * Returns the current day's briefing, generating it if needed
- * @summary Get today's briefing
+ * @summary Get today's briefing (legacy path)
  */
 export const getGetTodayBriefingUrl = () => {
   return `/api/briefing/today`;
@@ -352,7 +883,7 @@ export type GetTodayBriefingQueryResult = NonNullable<
 export type GetTodayBriefingQueryError = ErrorType<ErrorEnvelope>;
 
 /**
- * @summary Get today's briefing
+ * @summary Get today's briefing (legacy path)
  */
 
 export function useGetTodayBriefing<
@@ -454,6 +985,168 @@ export const useRegenerateTodayBriefing = <
   TContext
 > => {
   return useMutation(getRegenerateTodayBriefingMutationOptions(options));
+};
+
+/**
+ * Returns Selmen's profile and preferences
+ * @summary Get the principal profile
+ */
+export const getGetPrincipalUrl = () => {
+  return `/api/principal`;
+};
+
+export const getPrincipal = async (
+  options?: RequestInit,
+): Promise<Principal> => {
+  return customFetch<Principal>(getGetPrincipalUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPrincipalQueryKey = () => {
+  return [`/api/principal`] as const;
+};
+
+export const getGetPrincipalQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPrincipal>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPrincipal>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPrincipalQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPrincipal>>> = ({
+    signal,
+  }) => getPrincipal({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPrincipal>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPrincipalQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPrincipal>>
+>;
+export type GetPrincipalQueryError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Get the principal profile
+ */
+
+export function useGetPrincipal<
+  TData = Awaited<ReturnType<typeof getPrincipal>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPrincipal>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPrincipalQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update the principal profile
+ */
+export const getUpdatePrincipalUrl = () => {
+  return `/api/principal`;
+};
+
+export const updatePrincipal = async (
+  updatePrincipalBody: UpdatePrincipalBody,
+  options?: RequestInit,
+): Promise<Principal> => {
+  return customFetch<Principal>(getUpdatePrincipalUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updatePrincipalBody),
+  });
+};
+
+export const getUpdatePrincipalMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePrincipal>>,
+    TError,
+    { data: BodyType<UpdatePrincipalBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePrincipal>>,
+  TError,
+  { data: BodyType<UpdatePrincipalBody> },
+  TContext
+> => {
+  const mutationKey = ["updatePrincipal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePrincipal>>,
+    { data: BodyType<UpdatePrincipalBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updatePrincipal(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePrincipalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePrincipal>>
+>;
+export type UpdatePrincipalMutationBody = BodyType<UpdatePrincipalBody>;
+export type UpdatePrincipalMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Update the principal profile
+ */
+export const useUpdatePrincipal = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePrincipal>>,
+    TError,
+    { data: BodyType<UpdatePrincipalBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePrincipal>>,
+  TError,
+  { data: BodyType<UpdatePrincipalBody> },
+  TContext
+> => {
+  return useMutation(getUpdatePrincipalMutationOptions(options));
 };
 
 /**
@@ -801,7 +1494,7 @@ export const useUpdateTask = <
 };
 
 /**
- * @summary Delete a task
+ * @summary Delete a task (soft delete)
  */
 export const getDeleteTaskUrl = (id: number) => {
   return `/api/tasks/${id}`;
@@ -862,7 +1555,7 @@ export type DeleteTaskMutationResult = NonNullable<
 export type DeleteTaskMutationError = ErrorType<ErrorEnvelope>;
 
 /**
- * @summary Delete a task
+ * @summary Delete a task (soft delete)
  */
 export const useDeleteTask = <
   TError = ErrorType<ErrorEnvelope>,
@@ -1208,7 +1901,170 @@ export const useUpdateSettings = <
 };
 
 /**
- * @summary Twilio incoming SMS webhook (placeholder)
+ * Validates Twilio signature, parses the inbound SMS from the principal,
+routes it through the capture pipeline, and replies via SMS.
+
+ * @summary Twilio inbound SMS webhook
+ */
+export const getTwilioSmsInboundUrl = () => {
+  return `/api/webhooks/twilio/sms-inbound`;
+};
+
+export const twilioSmsInbound = async (
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getTwilioSmsInboundUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getTwilioSmsInboundMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof twilioSmsInbound>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof twilioSmsInbound>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["twilioSmsInbound"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof twilioSmsInbound>>,
+    void
+  > = () => {
+    return twilioSmsInbound(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TwilioSmsInboundMutationResult = NonNullable<
+  Awaited<ReturnType<typeof twilioSmsInbound>>
+>;
+
+export type TwilioSmsInboundMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Twilio inbound SMS webhook
+ */
+export const useTwilioSmsInbound = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof twilioSmsInbound>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof twilioSmsInbound>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getTwilioSmsInboundMutationOptions(options));
+};
+
+/**
+ * @summary Twilio SMS delivery status callback
+ */
+export const getTwilioSmsStatusUrl = () => {
+  return `/api/webhooks/twilio/sms-status`;
+};
+
+export const twilioSmsStatus = async (options?: RequestInit): Promise<void> => {
+  return customFetch<void>(getTwilioSmsStatusUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getTwilioSmsStatusMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof twilioSmsStatus>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof twilioSmsStatus>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["twilioSmsStatus"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof twilioSmsStatus>>,
+    void
+  > = () => {
+    return twilioSmsStatus(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TwilioSmsStatusMutationResult = NonNullable<
+  Awaited<ReturnType<typeof twilioSmsStatus>>
+>;
+
+export type TwilioSmsStatusMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Twilio SMS delivery status callback
+ */
+export const useTwilioSmsStatus = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof twilioSmsStatus>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof twilioSmsStatus>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getTwilioSmsStatusMutationOptions(options));
+};
+
+/**
+ * @summary Twilio incoming SMS webhook (legacy path)
  */
 export const getTwilioIncomingSmsUrl = () => {
   return `/api/twilio/incoming`;
@@ -1266,7 +2122,7 @@ export type TwilioIncomingSmsMutationResult = NonNullable<
 export type TwilioIncomingSmsMutationError = ErrorType<unknown>;
 
 /**
- * @summary Twilio incoming SMS webhook (placeholder)
+ * @summary Twilio incoming SMS webhook (legacy path)
  */
 export const useTwilioIncomingSms = <
   TError = ErrorType<unknown>,
@@ -1289,7 +2145,7 @@ export const useTwilioIncomingSms = <
 };
 
 /**
- * @summary Twilio voice webhook (placeholder)
+ * @summary Twilio voice webhook (legacy path)
  */
 export const getTwilioVoiceUrl = () => {
   return `/api/twilio/voice`;
@@ -1345,7 +2201,7 @@ export type TwilioVoiceMutationResult = NonNullable<
 export type TwilioVoiceMutationError = ErrorType<unknown>;
 
 /**
- * @summary Twilio voice webhook (placeholder)
+ * @summary Twilio voice webhook (legacy path)
  */
 export const useTwilioVoice = <
   TError = ErrorType<unknown>,
@@ -1366,6 +2222,82 @@ export const useTwilioVoice = <
 > => {
   return useMutation(getTwilioVoiceMutationOptions(options));
 };
+
+/**
+ * Returns the single continuous principal_talk thread (creates it if it doesn't exist yet)
+ * @summary Get or create the principal talk thread
+ */
+export const getGetPrincipalThreadUrl = () => {
+  return `/api/threads/principal`;
+};
+
+export const getPrincipalThread = async (
+  options?: RequestInit,
+): Promise<ThreadWithMessages> => {
+  return customFetch<ThreadWithMessages>(getGetPrincipalThreadUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPrincipalThreadQueryKey = () => {
+  return [`/api/threads/principal`] as const;
+};
+
+export const getGetPrincipalThreadQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPrincipalThread>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPrincipalThread>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPrincipalThreadQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPrincipalThread>>
+  > = ({ signal }) => getPrincipalThread({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPrincipalThread>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPrincipalThreadQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPrincipalThread>>
+>;
+export type GetPrincipalThreadQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get or create the principal talk thread
+ */
+
+export function useGetPrincipalThread<
+  TData = Awaited<ReturnType<typeof getPrincipalThread>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPrincipalThread>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPrincipalThreadQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List conversation threads
@@ -1551,9 +2483,6 @@ export function useGetThreadMessages<
 }
 
 /**
- * Returns a presigned GCS URL for direct upload. The client sends JSON
-metadata here, then uploads the file directly to the returned URL.
-
  * @summary Request a presigned URL for file upload
  */
 export const getRequestUploadUrlUrl = () => {

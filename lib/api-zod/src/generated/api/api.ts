@@ -16,10 +16,17 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * Accepts audio file path (from object storage) or raw text. Enqueues
-a job to transcribe (if audio) and parse with Claude. Returns a job ID.
+ * @summary Health check (alternate path)
+ */
+export const HealthCheckAltResponse = zod.object({
+  status: zod.string(),
+});
 
- * @summary Submit a voice or text capture
+/**
+ * Accepts raw text input. Enqueues a job to parse with Claude.
+Returns a job ID.
+
+ * @summary Submit a text capture
  */
 export const SubmitCaptureBody = zod
   .object({
@@ -39,7 +46,64 @@ export const SubmitCaptureBody = zod
   .describe("Either audioObjectPath or text must be provided");
 
 /**
- * @summary Get the status of a capture job
+ * Accepts an audio file (object storage path) for voice capture.
+Enqueues a job to transcribe via Whisper and parse with Claude.
+Returns a job ID.
+
+ * @summary Submit a voice capture
+ */
+export const SubmitVoiceCaptureBody = zod.object({
+  audioObjectPath: zod
+    .string()
+    .describe("Object storage path of the uploaded audio file"),
+  durationSeconds: zod
+    .number()
+    .nullish()
+    .describe("Duration of audio in seconds"),
+});
+
+/**
+ * @summary Get the status of a voice capture job
+ */
+export const GetVoiceCaptureStatusParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetVoiceCaptureStatusResponse = zod.object({
+  jobId: zod.string(),
+  status: zod.enum(["queued", "processing", "done", "failed"]),
+  transcript: zod.string().nullish(),
+  parsedEntities: zod
+    .object({
+      type: zod
+        .enum([
+          "task",
+          "reminder",
+          "decision",
+          "context",
+          "question",
+          "draft_request",
+          "project",
+        ])
+        .optional(),
+      title: zod.string().nullish(),
+      description: zod.string().nullish(),
+      proposedOwnerHint: zod.string().nullish(),
+      proposedPriority: zod.enum(["urgent", "high", "normal", "low"]).nullish(),
+      proposedDue: zod.coerce.date().nullish(),
+      tags: zod.array(zod.string()).optional(),
+      requiresClarification: zod.boolean().optional(),
+      clarificationQuestion: zod.string().nullish(),
+      tasks: zod.array(zod.object({}).passthrough()).optional(),
+      followups: zod.array(zod.object({}).passthrough()).optional(),
+      escalations: zod.array(zod.object({}).passthrough()).optional(),
+    })
+    .optional(),
+  error: zod.string().nullish(),
+});
+
+/**
+ * @summary Get the status of a capture job (legacy path)
  */
 export const GetCaptureJobStatusParams = zod.object({
   jobId: zod.coerce.string(),
@@ -51,6 +115,25 @@ export const GetCaptureJobStatusResponse = zod.object({
   transcript: zod.string().nullish(),
   parsedEntities: zod
     .object({
+      type: zod
+        .enum([
+          "task",
+          "reminder",
+          "decision",
+          "context",
+          "question",
+          "draft_request",
+          "project",
+        ])
+        .optional(),
+      title: zod.string().nullish(),
+      description: zod.string().nullish(),
+      proposedOwnerHint: zod.string().nullish(),
+      proposedPriority: zod.enum(["urgent", "high", "normal", "low"]).nullish(),
+      proposedDue: zod.coerce.date().nullish(),
+      tags: zod.array(zod.string()).optional(),
+      requiresClarification: zod.boolean().optional(),
+      clarificationQuestion: zod.string().nullish(),
       tasks: zod.array(zod.object({}).passthrough()).optional(),
       followups: zod.array(zod.object({}).passthrough()).optional(),
       escalations: zod.array(zod.object({}).passthrough()).optional(),
@@ -60,8 +143,116 @@ export const GetCaptureJobStatusResponse = zod.object({
 });
 
 /**
+ * Returns the current day's brief (morning or evening), generating if needed
+ * @summary Get today's brief
+ */
+export const GetTodayBriefResponse = zod.object({
+  id: zod.number(),
+  date: zod.coerce.date(),
+  markdown: zod.string(),
+  generatedAt: zod.coerce.date(),
+  openTasksCount: zod.number().nullish(),
+  escalationCount: zod.number().nullish(),
+});
+
+/**
+ * Returns tasks owned by the principal, sorted by priority and due date
+ * @summary Get prioritized task list for today
+ */
+export const GetTodayTasksQueryParams = zod.object({
+  status: zod
+    .enum([
+      "captured",
+      "dispatched",
+      "acknowledged",
+      "in_progress",
+      "blocked",
+      "complete",
+      "cancelled",
+      "open",
+      "done",
+    ])
+    .optional(),
+});
+
+export const GetTodayTasksResponseItem = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  status: zod.enum([
+    "open",
+    "in_progress",
+    "done",
+    "blocked",
+    "captured",
+    "dispatched",
+    "acknowledged",
+    "complete",
+    "cancelled",
+  ]),
+  priority: zod
+    .union([
+      zod.literal("low"),
+      zod.literal("medium"),
+      zod.literal("high"),
+      zod.literal("critical"),
+      zod.literal("urgent"),
+      zod.literal("normal"),
+      zod.literal(null),
+    ])
+    .nullish(),
+  assigneeId: zod.number().nullish(),
+  assigneeName: zod.string().nullish(),
+  ownerId: zod.number().nullish(),
+  dueDate: zod.coerce.date().nullish(),
+  dueAt: zod.coerce.date().nullish(),
+  authorityTier: zod
+    .union([
+      zod.literal("A"),
+      zod.literal("B"),
+      zod.literal("C"),
+      zod.literal(null),
+    ])
+    .nullish(),
+  tags: zod.array(zod.string()).nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date().optional(),
+});
+export const GetTodayTasksResponse = zod.array(GetTodayTasksResponseItem);
+
+/**
+ * Returns the last 20 captured messages (voice + text) for quick review
+ * @summary Get recent captures stream
+ */
+export const getTodayRecentCapturesQueryLimitDefault = 20;
+
+export const GetTodayRecentCapturesQueryParams = zod.object({
+  limit: zod.coerce.number().default(getTodayRecentCapturesQueryLimitDefault),
+});
+
+export const GetTodayRecentCapturesResponseItem = zod.object({
+  id: zod.number(),
+  threadId: zod.number(),
+  role: zod.enum(["user", "assistant", "system"]),
+  content: zod.string(),
+  audioObjectPath: zod.string().nullish(),
+  direction: zod.enum(["inbound", "outbound"]).nullish(),
+  senderType: zod
+    .enum(["principal", "agent", "team_member", "external"])
+    .nullish(),
+  contentType: zod.enum(["text", "voice", "image", "file", "system"]).nullish(),
+  contentUrl: zod.string().nullish(),
+  transcriptionConfidence: zod.number().nullish(),
+  claudeParse: zod.object({}).passthrough().nullish(),
+  createdAt: zod.coerce.date(),
+});
+export const GetTodayRecentCapturesResponse = zod.array(
+  GetTodayRecentCapturesResponseItem,
+);
+
+/**
  * Returns the current day's briefing, generating it if needed
- * @summary Get today's briefing
+ * @summary Get today's briefing (legacy path)
  */
 export const GetTodayBriefingResponse = zod.object({
   id: zod.number(),
@@ -85,10 +276,63 @@ export const RegenerateTodayBriefingResponse = zod.object({
 });
 
 /**
+ * Returns Selmen's profile and preferences
+ * @summary Get the principal profile
+ */
+export const GetPrincipalResponse = zod.object({
+  id: zod.number(),
+  fullName: zod.string(),
+  primaryPhone: zod.string().nullish(),
+  primaryEmail: zod.string(),
+  briefingMorningTime: zod.string().nullish(),
+  briefingEveningTime: zod.string().nullish(),
+  timezone: zod.string().optional(),
+  killSwitch: zod.boolean().optional(),
+  preferences: zod.object({}).passthrough().optional(),
+});
+
+/**
+ * @summary Update the principal profile
+ */
+export const UpdatePrincipalBody = zod.object({
+  fullName: zod.string().nullish(),
+  primaryPhone: zod.string().nullish(),
+  briefingMorningTime: zod.string().nullish(),
+  briefingEveningTime: zod.string().nullish(),
+  timezone: zod.string().nullish(),
+  killSwitch: zod.boolean().nullish(),
+  preferences: zod.object({}).passthrough().nullish(),
+});
+
+export const UpdatePrincipalResponse = zod.object({
+  id: zod.number(),
+  fullName: zod.string(),
+  primaryPhone: zod.string().nullish(),
+  primaryEmail: zod.string(),
+  briefingMorningTime: zod.string().nullish(),
+  briefingEveningTime: zod.string().nullish(),
+  timezone: zod.string().optional(),
+  killSwitch: zod.boolean().optional(),
+  preferences: zod.object({}).passthrough().optional(),
+});
+
+/**
  * @summary List tasks
  */
 export const ListTasksQueryParams = zod.object({
-  status: zod.enum(["open", "in_progress", "done", "blocked"]).optional(),
+  status: zod
+    .enum([
+      "open",
+      "in_progress",
+      "done",
+      "blocked",
+      "captured",
+      "dispatched",
+      "acknowledged",
+      "complete",
+      "cancelled",
+    ])
+    .optional(),
   assigneeId: zod.coerce.number().nullish(),
 });
 
@@ -96,19 +340,42 @@ export const ListTasksResponseItem = zod.object({
   id: zod.number(),
   title: zod.string(),
   description: zod.string().nullish(),
-  status: zod.enum(["open", "in_progress", "done", "blocked"]),
+  status: zod.enum([
+    "open",
+    "in_progress",
+    "done",
+    "blocked",
+    "captured",
+    "dispatched",
+    "acknowledged",
+    "complete",
+    "cancelled",
+  ]),
   priority: zod
     .union([
       zod.literal("low"),
       zod.literal("medium"),
       zod.literal("high"),
       zod.literal("critical"),
+      zod.literal("urgent"),
+      zod.literal("normal"),
       zod.literal(null),
     ])
     .nullish(),
   assigneeId: zod.number().nullish(),
   assigneeName: zod.string().nullish(),
+  ownerId: zod.number().nullish(),
   dueDate: zod.coerce.date().nullish(),
+  dueAt: zod.coerce.date().nullish(),
+  authorityTier: zod
+    .union([
+      zod.literal("A"),
+      zod.literal("B"),
+      zod.literal("C"),
+      zod.literal(null),
+    ])
+    .nullish(),
+  tags: zod.array(zod.string()).nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date().optional(),
 });
@@ -118,13 +385,23 @@ export const ListTasksResponse = zod.array(ListTasksResponseItem);
  * @summary Create a new task
  */
 
-export const createTaskBodyStatusDefault = `open`;
+export const createTaskBodyStatusDefault = `captured`;
 
 export const CreateTaskBody = zod.object({
   title: zod.string().min(1),
   description: zod.string().nullish(),
   status: zod
-    .enum(["open", "in_progress", "done", "blocked"])
+    .enum([
+      "open",
+      "in_progress",
+      "done",
+      "blocked",
+      "captured",
+      "dispatched",
+      "acknowledged",
+      "complete",
+      "cancelled",
+    ])
     .default(createTaskBodyStatusDefault),
   priority: zod
     .union([
@@ -132,11 +409,24 @@ export const CreateTaskBody = zod.object({
       zod.literal("medium"),
       zod.literal("high"),
       zod.literal("critical"),
+      zod.literal("urgent"),
+      zod.literal("normal"),
       zod.literal(null),
     ])
     .nullish(),
   assigneeId: zod.number().nullish(),
+  ownerId: zod.number().nullish(),
   dueDate: zod.coerce.date().nullish(),
+  dueAt: zod.coerce.date().nullish(),
+  authorityTier: zod
+    .union([
+      zod.literal("A"),
+      zod.literal("B"),
+      zod.literal("C"),
+      zod.literal(null),
+    ])
+    .nullish(),
+  tags: zod.array(zod.string()).nullish(),
 });
 
 /**
@@ -150,19 +440,42 @@ export const GetTaskResponse = zod.object({
   id: zod.number(),
   title: zod.string(),
   description: zod.string().nullish(),
-  status: zod.enum(["open", "in_progress", "done", "blocked"]),
+  status: zod.enum([
+    "open",
+    "in_progress",
+    "done",
+    "blocked",
+    "captured",
+    "dispatched",
+    "acknowledged",
+    "complete",
+    "cancelled",
+  ]),
   priority: zod
     .union([
       zod.literal("low"),
       zod.literal("medium"),
       zod.literal("high"),
       zod.literal("critical"),
+      zod.literal("urgent"),
+      zod.literal("normal"),
       zod.literal(null),
     ])
     .nullish(),
   assigneeId: zod.number().nullish(),
   assigneeName: zod.string().nullish(),
+  ownerId: zod.number().nullish(),
   dueDate: zod.coerce.date().nullish(),
+  dueAt: zod.coerce.date().nullish(),
+  authorityTier: zod
+    .union([
+      zod.literal("A"),
+      zod.literal("B"),
+      zod.literal("C"),
+      zod.literal(null),
+    ])
+    .nullish(),
+  tags: zod.array(zod.string()).nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date().optional(),
 });
@@ -183,6 +496,11 @@ export const UpdateTaskBody = zod.object({
       zod.literal("in_progress"),
       zod.literal("done"),
       zod.literal("blocked"),
+      zod.literal("captured"),
+      zod.literal("dispatched"),
+      zod.literal("acknowledged"),
+      zod.literal("complete"),
+      zod.literal("cancelled"),
       zod.literal(null),
     ])
     .nullish(),
@@ -192,36 +510,71 @@ export const UpdateTaskBody = zod.object({
       zod.literal("medium"),
       zod.literal("high"),
       zod.literal("critical"),
+      zod.literal("urgent"),
+      zod.literal("normal"),
       zod.literal(null),
     ])
     .nullish(),
   assigneeId: zod.number().nullish(),
+  ownerId: zod.number().nullish(),
   dueDate: zod.coerce.date().nullish(),
+  dueAt: zod.coerce.date().nullish(),
+  authorityTier: zod
+    .union([
+      zod.literal("A"),
+      zod.literal("B"),
+      zod.literal("C"),
+      zod.literal(null),
+    ])
+    .nullish(),
 });
 
 export const UpdateTaskResponse = zod.object({
   id: zod.number(),
   title: zod.string(),
   description: zod.string().nullish(),
-  status: zod.enum(["open", "in_progress", "done", "blocked"]),
+  status: zod.enum([
+    "open",
+    "in_progress",
+    "done",
+    "blocked",
+    "captured",
+    "dispatched",
+    "acknowledged",
+    "complete",
+    "cancelled",
+  ]),
   priority: zod
     .union([
       zod.literal("low"),
       zod.literal("medium"),
       zod.literal("high"),
       zod.literal("critical"),
+      zod.literal("urgent"),
+      zod.literal("normal"),
       zod.literal(null),
     ])
     .nullish(),
   assigneeId: zod.number().nullish(),
   assigneeName: zod.string().nullish(),
+  ownerId: zod.number().nullish(),
   dueDate: zod.coerce.date().nullish(),
+  dueAt: zod.coerce.date().nullish(),
+  authorityTier: zod
+    .union([
+      zod.literal("A"),
+      zod.literal("B"),
+      zod.literal("C"),
+      zod.literal(null),
+    ])
+    .nullish(),
+  tags: zod.array(zod.string()).nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date().optional(),
 });
 
 /**
- * @summary Delete a task
+ * @summary Delete a task (soft delete)
  */
 export const DeleteTaskParams = zod.object({
   id: zod.coerce.number(),
@@ -298,11 +651,55 @@ export const UpdateSettingsResponse = zod.object({
 });
 
 /**
+ * Returns the single continuous principal_talk thread (creates it if it doesn't exist yet)
+ * @summary Get or create the principal talk thread
+ */
+export const GetPrincipalThreadResponse = zod.object({
+  thread: zod.object({
+    id: zod.number(),
+    title: zod.string(),
+    threadType: zod
+      .enum(["principal_talk", "team_member", "system_internal"])
+      .nullish(),
+    channel: zod.enum(["sms", "email", "pwa"]).nullish(),
+    status: zod.enum(["active", "archived"]).nullish(),
+    lastMessageAt: zod.coerce.date().nullish(),
+    messageCount: zod.number().nullish(),
+    createdAt: zod.coerce.date(),
+  }),
+  messages: zod.array(
+    zod.object({
+      id: zod.number(),
+      threadId: zod.number(),
+      role: zod.enum(["user", "assistant", "system"]),
+      content: zod.string(),
+      audioObjectPath: zod.string().nullish(),
+      direction: zod.enum(["inbound", "outbound"]).nullish(),
+      senderType: zod
+        .enum(["principal", "agent", "team_member", "external"])
+        .nullish(),
+      contentType: zod
+        .enum(["text", "voice", "image", "file", "system"])
+        .nullish(),
+      contentUrl: zod.string().nullish(),
+      transcriptionConfidence: zod.number().nullish(),
+      claudeParse: zod.object({}).passthrough().nullish(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
  * @summary List conversation threads
  */
 export const ListThreadsResponseItem = zod.object({
   id: zod.number(),
   title: zod.string(),
+  threadType: zod
+    .enum(["principal_talk", "team_member", "system_internal"])
+    .nullish(),
+  channel: zod.enum(["sms", "email", "pwa"]).nullish(),
+  status: zod.enum(["active", "archived"]).nullish(),
   lastMessageAt: zod.coerce.date().nullish(),
   messageCount: zod.number().nullish(),
   createdAt: zod.coerce.date(),
@@ -329,6 +726,14 @@ export const GetThreadMessagesResponseItem = zod.object({
   role: zod.enum(["user", "assistant", "system"]),
   content: zod.string(),
   audioObjectPath: zod.string().nullish(),
+  direction: zod.enum(["inbound", "outbound"]).nullish(),
+  senderType: zod
+    .enum(["principal", "agent", "team_member", "external"])
+    .nullish(),
+  contentType: zod.enum(["text", "voice", "image", "file", "system"]).nullish(),
+  contentUrl: zod.string().nullish(),
+  transcriptionConfidence: zod.number().nullish(),
+  claudeParse: zod.object({}).passthrough().nullish(),
   createdAt: zod.coerce.date(),
 });
 export const GetThreadMessagesResponse = zod.array(
@@ -336,9 +741,6 @@ export const GetThreadMessagesResponse = zod.array(
 );
 
 /**
- * Returns a presigned GCS URL for direct upload. The client sends JSON
-metadata here, then uploads the file directly to the returned URL.
-
  * @summary Request a presigned URL for file upload
  */
 

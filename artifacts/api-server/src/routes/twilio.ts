@@ -1,5 +1,8 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { validateRequest } from "twilio";
+import { randomUUID } from "crypto";
+import { db, captureJobsTable } from "@workspace/db";
+import { enqueueCapture } from "../lib/queue";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -8,7 +11,7 @@ function twilioSignatureMiddleware(req: Request, res: Response, next: NextFuncti
   const authToken = process.env.TWILIO_AUTH_TOKEN;
 
   if (!authToken) {
-    logger.warn("TWILIO_AUTH_TOKEN not set — skipping signature validation (placeholder mode)");
+    logger.warn("TWILIO_AUTH_TOKEN not set — skipping signature validation");
     return next();
   }
 
@@ -33,10 +36,58 @@ function twilioSignatureMiddleware(req: Request, res: Response, next: NextFuncti
   next();
 }
 
+router.post("/webhooks/twilio/sms-inbound", twilioSignatureMiddleware, async (req, res): Promise<void> => {
+  const body = req.body as Record<string, string>;
+  const from = body.From ?? "unknown";
+  const messageBody = body.Body ?? "";
+  const mediaUrl = body.MediaUrl0;
+  const numMedia = parseInt(body.NumMedia ?? "0", 10);
+
+  logger.info({ from, bodyLength: messageBody.length }, "Twilio inbound SMS");
+
+  const principalPhone = process.env.PRINCIPAL_PHONE;
+  if (principalPhone && from !== principalPhone) {
+    logger.warn({ from }, "SMS from unauthorized sender");
+    res.setHeader("Content-Type", "text/xml");
+    res.send(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`);
+    return;
+  }
+
+  const jobId = randomUUID();
+  let contentType: "text" | "voice" = "text";
+  let audioObjectPath: string | null = null;
+
+  if (numMedia > 0 && mediaUrl) {
+    audioObjectPath = mediaUrl;
+    contentType = "voice";
+  }
+
+  await db.insert(captureJobsTable).values({
+    jobId,
+    status: "queued",
+    audioObjectPath,
+    rawText: contentType === "text" ? messageBody : null,
+    durationSeconds: null,
+  });
+
+  await enqueueCapture(jobId);
+
+  logger.info({ jobId, from }, "Capture job enqueued for inbound SMS");
+
+  res.setHeader("Content-Type", "text/xml");
+  res.send(`<?xml version="1.0" encoding="UTF-8"?><Response><Message>Got it. Processing now — I'll update your task list shortly.</Message></Response>`);
+});
+
+router.post("/webhooks/twilio/sms-status", twilioSignatureMiddleware, (req, res): void => {
+  const body = req.body as Record<string, string>;
+  logger.info({ sid: body.MessageSid, status: body.MessageStatus }, "Twilio SMS status callback");
+  res.status(204).send();
+});
+
 router.post("/twilio/incoming", twilioSignatureMiddleware, (req, res): void => {
   const from = (req.body as Record<string, string>).From ?? "unknown";
   const body = (req.body as Record<string, string>).Body ?? "";
-  logger.info({ from, body }, "Twilio incoming SMS webhook");
+  logger.info({ from, body }, "Twilio incoming SMS webhook (legacy path)");
   res.setHeader("Content-Type", "text/xml");
   res.send(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`);
 });

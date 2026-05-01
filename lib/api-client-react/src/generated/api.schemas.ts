@@ -34,6 +34,16 @@ export interface SubmitCaptureBody {
   durationSeconds?: number | null;
 }
 
+export interface SubmitVoiceCaptureBody {
+  /** Object storage path of the uploaded audio file */
+  audioObjectPath: string;
+  /**
+   * Duration of audio in seconds
+   * @nullable
+   */
+  durationSeconds?: number | null;
+}
+
 export type CaptureJobResponseStatus =
   (typeof CaptureJobResponseStatus)[keyof typeof CaptureJobResponseStatus];
 
@@ -59,6 +69,33 @@ export const CaptureJobStatusStatus = {
   failed: "failed",
 } as const;
 
+export type ParsedEntitiesType =
+  (typeof ParsedEntitiesType)[keyof typeof ParsedEntitiesType];
+
+export const ParsedEntitiesType = {
+  task: "task",
+  reminder: "reminder",
+  decision: "decision",
+  context: "context",
+  question: "question",
+  draft_request: "draft_request",
+  project: "project",
+} as const;
+
+/**
+ * @nullable
+ */
+export type ParsedEntitiesProposedPriority =
+  | (typeof ParsedEntitiesProposedPriority)[keyof typeof ParsedEntitiesProposedPriority]
+  | null;
+
+export const ParsedEntitiesProposedPriority = {
+  urgent: "urgent",
+  high: "high",
+  normal: "normal",
+  low: "low",
+} as const;
+
 export type ParsedEntitiesTasksItem = { [key: string]: unknown };
 
 export type ParsedEntitiesFollowupsItem = { [key: string]: unknown };
@@ -66,6 +103,21 @@ export type ParsedEntitiesFollowupsItem = { [key: string]: unknown };
 export type ParsedEntitiesEscalationsItem = { [key: string]: unknown };
 
 export interface ParsedEntities {
+  type?: ParsedEntitiesType;
+  /** @nullable */
+  title?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  proposedOwnerHint?: string | null;
+  /** @nullable */
+  proposedPriority?: ParsedEntitiesProposedPriority;
+  /** @nullable */
+  proposedDue?: string | null;
+  tags?: string[];
+  requiresClarification?: boolean;
+  /** @nullable */
+  clarificationQuestion?: string | null;
   tasks?: ParsedEntitiesTasksItem[];
   followups?: ParsedEntitiesFollowupsItem[];
   escalations?: ParsedEntitiesEscalationsItem[];
@@ -92,6 +144,45 @@ export interface Briefing {
   escalationCount?: number | null;
 }
 
+export type PrincipalPreferences = { [key: string]: unknown };
+
+export interface Principal {
+  id: number;
+  fullName: string;
+  /** @nullable */
+  primaryPhone?: string | null;
+  primaryEmail: string;
+  /** @nullable */
+  briefingMorningTime?: string | null;
+  /** @nullable */
+  briefingEveningTime?: string | null;
+  timezone?: string;
+  killSwitch?: boolean;
+  preferences?: PrincipalPreferences;
+}
+
+/**
+ * @nullable
+ */
+export type UpdatePrincipalBodyPreferences = { [key: string]: unknown } | null;
+
+export interface UpdatePrincipalBody {
+  /** @nullable */
+  fullName?: string | null;
+  /** @nullable */
+  primaryPhone?: string | null;
+  /** @nullable */
+  briefingMorningTime?: string | null;
+  /** @nullable */
+  briefingEveningTime?: string | null;
+  /** @nullable */
+  timezone?: string | null;
+  /** @nullable */
+  killSwitch?: boolean | null;
+  /** @nullable */
+  preferences?: UpdatePrincipalBodyPreferences;
+}
+
 export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
 
 export const TaskStatus = {
@@ -99,6 +190,11 @@ export const TaskStatus = {
   in_progress: "in_progress",
   done: "done",
   blocked: "blocked",
+  captured: "captured",
+  dispatched: "dispatched",
+  acknowledged: "acknowledged",
+  complete: "complete",
+  cancelled: "cancelled",
 } as const;
 
 /**
@@ -113,6 +209,21 @@ export const TaskPriority = {
   medium: "medium",
   high: "high",
   critical: "critical",
+  urgent: "urgent",
+  normal: "normal",
+} as const;
+
+/**
+ * @nullable
+ */
+export type TaskAuthorityTier =
+  | (typeof TaskAuthorityTier)[keyof typeof TaskAuthorityTier]
+  | null;
+
+export const TaskAuthorityTier = {
+  A: "A",
+  B: "B",
+  C: "C",
 } as const;
 
 export interface Task {
@@ -128,7 +239,15 @@ export interface Task {
   /** @nullable */
   assigneeName?: string | null;
   /** @nullable */
+  ownerId?: number | null;
+  /** @nullable */
   dueDate?: string | null;
+  /** @nullable */
+  dueAt?: string | null;
+  /** @nullable */
+  authorityTier?: TaskAuthorityTier;
+  /** @nullable */
+  tags?: string[] | null;
   createdAt: string;
   updatedAt?: string;
 }
@@ -141,6 +260,11 @@ export const CreateTaskBodyStatus = {
   in_progress: "in_progress",
   done: "done",
   blocked: "blocked",
+  captured: "captured",
+  dispatched: "dispatched",
+  acknowledged: "acknowledged",
+  complete: "complete",
+  cancelled: "cancelled",
 } as const;
 
 /**
@@ -155,6 +279,21 @@ export const CreateTaskBodyPriority = {
   medium: "medium",
   high: "high",
   critical: "critical",
+  urgent: "urgent",
+  normal: "normal",
+} as const;
+
+/**
+ * @nullable
+ */
+export type CreateTaskBodyAuthorityTier =
+  | (typeof CreateTaskBodyAuthorityTier)[keyof typeof CreateTaskBodyAuthorityTier]
+  | null;
+
+export const CreateTaskBodyAuthorityTier = {
+  A: "A",
+  B: "B",
+  C: "C",
 } as const;
 
 export interface CreateTaskBody {
@@ -168,7 +307,15 @@ export interface CreateTaskBody {
   /** @nullable */
   assigneeId?: number | null;
   /** @nullable */
+  ownerId?: number | null;
+  /** @nullable */
   dueDate?: string | null;
+  /** @nullable */
+  dueAt?: string | null;
+  /** @nullable */
+  authorityTier?: CreateTaskBodyAuthorityTier;
+  /** @nullable */
+  tags?: string[] | null;
 }
 
 /**
@@ -183,6 +330,11 @@ export const UpdateTaskBodyStatus = {
   in_progress: "in_progress",
   done: "done",
   blocked: "blocked",
+  captured: "captured",
+  dispatched: "dispatched",
+  acknowledged: "acknowledged",
+  complete: "complete",
+  cancelled: "cancelled",
 } as const;
 
 /**
@@ -197,6 +349,21 @@ export const UpdateTaskBodyPriority = {
   medium: "medium",
   high: "high",
   critical: "critical",
+  urgent: "urgent",
+  normal: "normal",
+} as const;
+
+/**
+ * @nullable
+ */
+export type UpdateTaskBodyAuthorityTier =
+  | (typeof UpdateTaskBodyAuthorityTier)[keyof typeof UpdateTaskBodyAuthorityTier]
+  | null;
+
+export const UpdateTaskBodyAuthorityTier = {
+  A: "A",
+  B: "B",
+  C: "C",
 } as const;
 
 export interface UpdateTaskBody {
@@ -214,7 +381,13 @@ export interface UpdateTaskBody {
   /** @nullable */
   assigneeId?: number | null;
   /** @nullable */
+  ownerId?: number | null;
+  /** @nullable */
   dueDate?: string | null;
+  /** @nullable */
+  dueAt?: string | null;
+  /** @nullable */
+  authorityTier?: UpdateTaskBodyAuthorityTier;
 }
 
 export interface TeamMember {
@@ -249,9 +422,53 @@ export interface UpdateSettingsBody {
   flags?: FeatureFlags;
 }
 
+/**
+ * @nullable
+ */
+export type ThreadThreadType =
+  | (typeof ThreadThreadType)[keyof typeof ThreadThreadType]
+  | null;
+
+export const ThreadThreadType = {
+  principal_talk: "principal_talk",
+  team_member: "team_member",
+  system_internal: "system_internal",
+} as const;
+
+/**
+ * @nullable
+ */
+export type ThreadChannel =
+  | (typeof ThreadChannel)[keyof typeof ThreadChannel]
+  | null;
+
+export const ThreadChannel = {
+  sms: "sms",
+  email: "email",
+  pwa: "pwa",
+} as const;
+
+/**
+ * @nullable
+ */
+export type ThreadStatus =
+  | (typeof ThreadStatus)[keyof typeof ThreadStatus]
+  | null;
+
+export const ThreadStatus = {
+  active: "active",
+  archived: "archived",
+} as const;
+
 export interface Thread {
   id: number;
   title: string;
+  /** @nullable */
+  threadType?: ThreadThreadType;
+  /** @nullable */
+  channel?: ThreadChannel;
+  /** @nullable */
+  status?: ThreadStatus;
   /** @nullable */
   lastMessageAt?: string | null;
   /** @nullable */
@@ -267,6 +484,52 @@ export const MessageRole = {
   system: "system",
 } as const;
 
+/**
+ * @nullable
+ */
+export type MessageDirection =
+  | (typeof MessageDirection)[keyof typeof MessageDirection]
+  | null;
+
+export const MessageDirection = {
+  inbound: "inbound",
+  outbound: "outbound",
+} as const;
+
+/**
+ * @nullable
+ */
+export type MessageSenderType =
+  | (typeof MessageSenderType)[keyof typeof MessageSenderType]
+  | null;
+
+export const MessageSenderType = {
+  principal: "principal",
+  agent: "agent",
+  team_member: "team_member",
+  external: "external",
+} as const;
+
+/**
+ * @nullable
+ */
+export type MessageContentType =
+  | (typeof MessageContentType)[keyof typeof MessageContentType]
+  | null;
+
+export const MessageContentType = {
+  text: "text",
+  voice: "voice",
+  image: "image",
+  file: "file",
+  system: "system",
+} as const;
+
+/**
+ * @nullable
+ */
+export type MessageClaudeParse = { [key: string]: unknown } | null;
+
 export interface Message {
   id: number;
   threadId: number;
@@ -274,7 +537,24 @@ export interface Message {
   content: string;
   /** @nullable */
   audioObjectPath?: string | null;
+  /** @nullable */
+  direction?: MessageDirection;
+  /** @nullable */
+  senderType?: MessageSenderType;
+  /** @nullable */
+  contentType?: MessageContentType;
+  /** @nullable */
+  contentUrl?: string | null;
+  /** @nullable */
+  transcriptionConfidence?: number | null;
+  /** @nullable */
+  claudeParse?: MessageClaudeParse;
   createdAt: string;
+}
+
+export interface ThreadWithMessages {
+  thread: Thread;
+  messages: Message[];
 }
 
 export interface UploadUrlRequest {
@@ -303,6 +583,29 @@ export interface UploadUrlResponse {
   metadata?: UploadUrlRequest;
 }
 
+export type GetTodayTasksParams = {
+  status?: GetTodayTasksStatus;
+};
+
+export type GetTodayTasksStatus =
+  (typeof GetTodayTasksStatus)[keyof typeof GetTodayTasksStatus];
+
+export const GetTodayTasksStatus = {
+  captured: "captured",
+  dispatched: "dispatched",
+  acknowledged: "acknowledged",
+  in_progress: "in_progress",
+  blocked: "blocked",
+  complete: "complete",
+  cancelled: "cancelled",
+  open: "open",
+  done: "done",
+} as const;
+
+export type GetTodayRecentCapturesParams = {
+  limit?: number;
+};
+
 export type ListTasksParams = {
   status?: ListTasksStatus;
   /**
@@ -319,6 +622,11 @@ export const ListTasksStatus = {
   in_progress: "in_progress",
   done: "done",
   blocked: "blocked",
+  captured: "captured",
+  dispatched: "dispatched",
+  acknowledged: "acknowledged",
+  complete: "complete",
+  cancelled: "cancelled",
 } as const;
 
 export type GetThreadMessagesParams = {

@@ -7,3 +7,7 @@ export * from "./briefings";
 export * from "./captureJobs";
 export * from "./featureFlags";
 export * from "./agentActionsLog";
+export * from "./projects";
+export * from "./followups";
+export * from "./escalations";
+export * from "./schedules";

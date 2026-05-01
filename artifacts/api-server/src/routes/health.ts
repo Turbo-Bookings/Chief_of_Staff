@@ -5,7 +5,7 @@ const router: IRouter = Router();
 
 type ServiceStatus = "ok" | "error" | "not_configured";
 
-router.get("/healthz", async (_req, res) => {
+async function getHealthPayload() {
   const services: Record<string, ServiceStatus> = {};
 
   try {
@@ -23,10 +23,17 @@ router.get("/healthz", async (_req, res) => {
     (s): boolean => s === "ok" || s === "not_configured",
   );
 
-  res.status(allOk ? 200 : 503).json({
-    status: allOk ? "ok" : "degraded",
-    services,
-  });
+  return { status: allOk ? "ok" : "degraded", services };
+}
+
+router.get("/health", async (_req, res) => {
+  const payload = await getHealthPayload();
+  res.status(payload.status === "ok" ? 200 : 503).json(payload);
+});
+
+router.get("/healthz", async (_req, res) => {
+  const payload = await getHealthPayload();
+  res.status(payload.status === "ok" ? 200 : 503).json(payload);
 });
 
 export default router;

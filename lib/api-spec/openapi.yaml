@@ -12,22 +12,28 @@ tags:
     description: Health operations
   - name: capture
     description: Voice/text capture and ingestion
+  - name: today
+    description: Today tab — brief, tasks, and recent captures
   - name: briefing
-    description: Daily briefing (Today tab)
+    description: Daily briefing (legacy path)
   - name: tasks
     description: Task management
   - name: team
     description: Team members
+  - name: principal
+    description: Principal profile and preferences
   - name: settings
     description: App settings and feature flags
-  - name: twilio
+  - name: webhooks
     description: Twilio webhook endpoints
+  - name: twilio
+    description: Twilio webhook endpoints (legacy path)
   - name: threads
     description: Conversation threads
   - name: storage
     description: Object storage upload and serving endpoints
 paths:
-  /healthz:
+  /health:
     get:
       operationId: healthCheck
       tags: [health]
@@ -41,14 +47,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  /healthz:
+    get:
+      operationId: healthCheckAlt
+      tags: [health]
+      summary: Health check (alternate path)
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
   /capture:
     post:
       operationId: submitCapture
       tags: [capture]
-      summary: Submit a voice or text capture
+      summary: Submit a text capture
       description: |
-        Accepts audio file path (from object storage) or raw text. Enqueues
-        a job to transcribe (if audio) and parse with Claude. Returns a job ID.
+        Accepts raw text input. Enqueues a job to parse with Claude.
+        Returns a job ID.
       requestBody:
         required: true
         content:
@@ -69,11 +88,65 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
 
+  /capture/voice:
+    post:
+      operationId: submitVoiceCapture
+      tags: [capture]
+      summary: Submit a voice capture
+      description: |
+        Accepts an audio file (object storage path) for voice capture.
+        Enqueues a job to transcribe via Whisper and parse with Claude.
+        Returns a job ID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitVoiceCaptureBody"
+      responses:
+        "202":
+          description: Voice capture job enqueued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaptureJobResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /capture/voice/{id}:
+    get:
+      operationId: getVoiceCaptureStatus
+      tags: [capture]
+      summary: Get the status of a voice capture job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaptureJobStatus"
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
   /capture/{jobId}/status:
     get:
       operationId: getCaptureJobStatus
       tags: [capture]
-      summary: Get the status of a capture job
+      summary: Get the status of a capture job (legacy path)
       parameters:
         - name: jobId
           in: path
@@ -94,11 +167,77 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
 
+  /today/brief:
+    get:
+      operationId: getTodayBrief
+      tags: [today]
+      summary: Get today's brief
+      description: Returns the current day's brief (morning or evening), generating if needed
+      responses:
+        "200":
+          description: Today's brief
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Briefing"
+        "500":
+          description: Error generating brief
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /today/tasks:
+    get:
+      operationId: getTodayTasks
+      tags: [today]
+      summary: Get prioritized task list for today
+      description: Returns tasks owned by the principal, sorted by priority and due date
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [captured, dispatched, acknowledged, in_progress, blocked, complete, cancelled, open, done]
+      responses:
+        "200":
+          description: Today's task list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+
+  /today/recent-captures:
+    get:
+      operationId: getTodayRecentCaptures
+      tags: [today]
+      summary: Get recent captures stream
+      description: Returns the last 20 captured messages (voice + text) for quick review
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Recent captures
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+
   /briefing/today:
     get:
       operationId: getTodayBriefing
       tags: [briefing]
-      summary: Get today's briefing
+      summary: Get today's briefing (legacy path)
       description: Returns the current day's briefing, generating it if needed
       responses:
         "200":
@@ -133,6 +272,49 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
 
+  /principal:
+    get:
+      operationId: getPrincipal
+      tags: [principal]
+      summary: Get the principal profile
+      description: Returns Selmen's profile and preferences
+      responses:
+        "200":
+          description: Principal profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Principal"
+        "404":
+          description: Principal not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    patch:
+      operationId: updatePrincipal
+      tags: [principal]
+      summary: Update the principal profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePrincipalBody"
+      responses:
+        "200":
+          description: Updated principal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Principal"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
   /tasks:
     get:
       operationId: listTasks
@@ -144,7 +326,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [open, in_progress, done, blocked]
+            enum: [open, in_progress, done, blocked, captured, dispatched, acknowledged, complete, cancelled]
         - name: assigneeId
           in: query
           required: false
@@ -239,7 +421,7 @@ paths:
     delete:
       operationId: deleteTask
       tags: [tasks]
-      summary: Delete a task
+      summary: Delete a task (soft delete)
       parameters:
         - name: id
           in: path
@@ -332,11 +514,42 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
 
+  /webhooks/twilio/sms-inbound:
+    post:
+      operationId: twilioSmsInbound
+      tags: [webhooks]
+      summary: Twilio inbound SMS webhook
+      description: |
+        Validates Twilio signature, parses the inbound SMS from the principal,
+        routes it through the capture pipeline, and replies via SMS.
+      responses:
+        "200":
+          description: Webhook processed
+          content:
+            text/xml:
+              schema:
+                type: string
+        "403":
+          description: Invalid signature or unauthorized sender
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /webhooks/twilio/sms-status:
+    post:
+      operationId: twilioSmsStatus
+      tags: [webhooks]
+      summary: Twilio SMS delivery status callback
+      responses:
+        "204":
+          description: Status received
+
   /twilio/incoming:
     post:
       operationId: twilioIncomingSms
       tags: [twilio]
-      summary: Twilio incoming SMS webhook (placeholder)
+      summary: Twilio incoming SMS webhook (legacy path)
       responses:
         "200":
           description: Webhook received
@@ -349,7 +562,7 @@ paths:
     post:
       operationId: twilioVoice
       tags: [twilio]
-      summary: Twilio voice webhook (placeholder)
+      summary: Twilio voice webhook (legacy path)
       responses:
         "200":
           description: Webhook received
@@ -357,6 +570,20 @@ paths:
             text/xml:
               schema:
                 type: string
+
+  /threads/principal:
+    get:
+      operationId: getPrincipalThread
+      tags: [threads]
+      summary: Get or create the principal talk thread
+      description: Returns the single continuous principal_talk thread (creates it if it doesn't exist yet)
+      responses:
+        "200":
+          description: Principal talk thread with recent messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreadWithMessages"
 
   /threads:
     get:
@@ -416,9 +643,6 @@ paths:
       tags: [storage]
       operationId: requestUploadUrl
       summary: Request a presigned URL for file upload
-      description: |
-        Returns a presigned GCS URL for direct upload. The client sends JSON
-        metadata here, then uploads the file directly to the returned URL.
       requestBody:
         required: true
         content:
@@ -540,6 +764,17 @@ components:
           description: Duration of audio in seconds
       description: Either audioObjectPath or text must be provided
 
+    SubmitVoiceCaptureBody:
+      type: object
+      required: [audioObjectPath]
+      properties:
+        audioObjectPath:
+          type: string
+          description: Object storage path of the uploaded audio file
+        durationSeconds:
+          type: ["number", "null"]
+          description: Duration of audio in seconds
+
     CaptureJobResponse:
       type: object
       required: [jobId, status]
@@ -569,6 +804,29 @@ components:
     ParsedEntities:
       type: object
       properties:
+        type:
+          type: string
+          enum: [task, reminder, decision, context, question, draft_request, project]
+        title:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        proposedOwnerHint:
+          type: ["string", "null"]
+        proposedPriority:
+          type: ["string", "null"]
+          enum: [urgent, high, normal, low]
+        proposedDue:
+          type: ["string", "null"]
+          format: date-time
+        tags:
+          type: array
+          items:
+            type: string
+        requiresClarification:
+          type: boolean
+        clarificationQuestion:
+          type: ["string", "null"]
         tasks:
           type: array
           items:
@@ -601,6 +859,47 @@ components:
         escalationCount:
           type: ["integer", "null"]
 
+    Principal:
+      type: object
+      required: [id, fullName, primaryEmail]
+      properties:
+        id:
+          type: integer
+        fullName:
+          type: string
+        primaryPhone:
+          type: ["string", "null"]
+        primaryEmail:
+          type: string
+        briefingMorningTime:
+          type: ["string", "null"]
+        briefingEveningTime:
+          type: ["string", "null"]
+        timezone:
+          type: string
+        killSwitch:
+          type: boolean
+        preferences:
+          type: object
+
+    UpdatePrincipalBody:
+      type: object
+      properties:
+        fullName:
+          type: ["string", "null"]
+        primaryPhone:
+          type: ["string", "null"]
+        briefingMorningTime:
+          type: ["string", "null"]
+        briefingEveningTime:
+          type: ["string", "null"]
+        timezone:
+          type: ["string", "null"]
+        killSwitch:
+          type: ["boolean", "null"]
+        preferences:
+          type: ["object", "null"]
+
     Task:
       type: object
       required: [id, title, status, createdAt]
@@ -613,17 +912,29 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [open, in_progress, done, blocked]
+          enum: [open, in_progress, done, blocked, captured, dispatched, acknowledged, complete, cancelled]
         priority:
           type: ["string", "null"]
-          enum: [low, medium, high, critical, null]
+          enum: [low, medium, high, critical, urgent, normal, null]
         assigneeId:
           type: ["integer", "null"]
         assigneeName:
           type: ["string", "null"]
+        ownerId:
+          type: ["integer", "null"]
         dueDate:
           type: ["string", "null"]
           format: date
+        dueAt:
+          type: ["string", "null"]
+          format: date-time
+        authorityTier:
+          type: ["string", "null"]
+          enum: [A, B, C, null]
+        tags:
+          type: ["array", "null"]
+          items:
+            type: string
         createdAt:
           type: string
           format: date-time
@@ -642,16 +953,28 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [open, in_progress, done, blocked]
-          default: open
+          enum: [open, in_progress, done, blocked, captured, dispatched, acknowledged, complete, cancelled]
+          default: captured
         priority:
           type: ["string", "null"]
-          enum: [low, medium, high, critical, null]
+          enum: [low, medium, high, critical, urgent, normal, null]
         assigneeId:
+          type: ["integer", "null"]
+        ownerId:
           type: ["integer", "null"]
         dueDate:
           type: ["string", "null"]
           format: date
+        dueAt:
+          type: ["string", "null"]
+          format: date-time
+        authorityTier:
+          type: ["string", "null"]
+          enum: [A, B, C, null]
+        tags:
+          type: ["array", "null"]
+          items:
+            type: string
 
     UpdateTaskBody:
       type: object
@@ -663,15 +986,23 @@ components:
           type: ["string", "null"]
         status:
           type: ["string", "null"]
-          enum: [open, in_progress, done, blocked, null]
+          enum: [open, in_progress, done, blocked, captured, dispatched, acknowledged, complete, cancelled, null]
         priority:
           type: ["string", "null"]
-          enum: [low, medium, high, critical, null]
+          enum: [low, medium, high, critical, urgent, normal, null]
         assigneeId:
+          type: ["integer", "null"]
+        ownerId:
           type: ["integer", "null"]
         dueDate:
           type: ["string", "null"]
           format: date
+        dueAt:
+          type: ["string", "null"]
+          format: date-time
+        authorityTier:
+          type: ["string", "null"]
+          enum: [A, B, C, null]
 
     TeamMember:
       type: object
@@ -729,6 +1060,15 @@ components:
           type: integer
         title:
           type: string
+        threadType:
+          type: ["string", "null"]
+          enum: [principal_talk, team_member, system_internal]
+        channel:
+          type: ["string", "null"]
+          enum: [sms, email, pwa]
+        status:
+          type: ["string", "null"]
+          enum: [active, archived]
         lastMessageAt:
           type: ["string", "null"]
           format: date-time
@@ -737,6 +1077,17 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    ThreadWithMessages:
+      type: object
+      required: [thread, messages]
+      properties:
+        thread:
+          $ref: "#/components/schemas/Thread"
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
 
     Message:
       type: object
@@ -753,6 +1104,21 @@ components:
           type: string
         audioObjectPath:
           type: ["string", "null"]
+        direction:
+          type: ["string", "null"]
+          enum: [inbound, outbound]
+        senderType:
+          type: ["string", "null"]
+          enum: [principal, agent, team_member, external]
+        contentType:
+          type: ["string", "null"]
+          enum: [text, voice, image, file, system]
+        contentUrl:
+          type: ["string", "null"]
+        transcriptionConfidence:
+          type: ["number", "null"]
+        claudeParse:
+          type: ["object", "null"]
         createdAt:
           type: string
           format: date-time

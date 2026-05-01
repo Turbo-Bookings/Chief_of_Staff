@@ -48,7 +48,14 @@ app.use(
   })),
 );
 
-const PUBLIC_PATHS = ["/healthz", "/twilio/incoming", "/twilio/voice"];
+const PUBLIC_PATHS = [
+  "/health",
+  "/healthz",
+  "/twilio/incoming",
+  "/twilio/voice",
+  "/webhooks/twilio/sms-inbound",
+  "/webhooks/twilio/sms-status",
+];
 
 app.use("/api", (req: Request, res: Response, next: NextFunction) => {
   if (PUBLIC_PATHS.some((p) => req.path === p || req.path.startsWith(p + "/"))) {

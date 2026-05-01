@@ -2,7 +2,7 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Built for Selmen Hassen (CEO, Takeovers Rentals). Phase 1 PWA shell is complete.
+pnpm workspace monorepo using TypeScript. Built for Selmen Hassen (CEO, Takeovers Rentals). Phase 1 PWA shell + backend infrastructure complete.
 
 ## Stack
 
@@ -19,6 +19,7 @@ pnpm workspace monorepo using TypeScript. Built for Selmen Hassen (CEO, Takeover
 - **AI**: Replit AI proxy → Anthropic (Claude claude-sonnet-4-6) + OpenAI (Whisper)
 - **Queue**: BullMQ inline fallback (no Redis in dev; Upstash for prod)
 - **Object Storage**: Replit Object Storage (DEFAULT_OBJECT_STORAGE_BUCKET_ID)
+- **SMS**: Twilio (TWILIO_AUTH_TOKEN + PRINCIPAL_PHONE env vars; signature validation with graceful skip if token not set)
 
 ## Artifacts
 
@@ -39,31 +40,100 @@ pnpm workspace monorepo using TypeScript. Built for Selmen Hassen (CEO, Takeover
 ## App Navigation (7 tabs)
 
 - `/app/talk` — Voice/text capture (functional: Whisper + Claude)
-- `/app/today` — AI daily briefing (functional: Claude)
-- `/app/tasks` — Task list (placeholder)
-- `/app/people` — Team intelligence (placeholder)
-- `/app/escalate` — Escalate/Twilio (placeholder)
-- `/app/report` — Weekly report (placeholder)
-- `/app/settings` — Feature flag toggles (functional)
+- `/app/today` — AI daily briefing + task list (functional: Claude)
+- `/app/approvals` — Placeholder ("Nothing pending")
+- `/app/inbox` — Placeholder ("Email integration coming in Phase 3")
+- `/app/team` — Team roster (functional: read-only)
+- `/app/projects` — Placeholder
+- `/app/insights` — Placeholder
 
-## API Routes
+## API Routes (Phase 1)
 
+### Public endpoints (no auth required)
 | Route | Method | Purpose |
 |---|---|---|
-| `/api/capture` | POST | Voice/text capture (audio → Whisper + Claude) |
-| `/api/briefing` | GET | Today's AI briefing |
-| `/api/tasks` | GET/POST/PATCH | Task management |
+| `/api/health` | GET | Health check (postgres + redis status) |
+| `/api/healthz` | GET | Health check (alias) |
+| `/api/webhooks/twilio/sms-inbound` | POST | Inbound SMS from Selmen → capture pipeline |
+| `/api/webhooks/twilio/sms-status` | POST | Twilio delivery status callback |
+
+### Auth-protected endpoints
+| Route | Method | Purpose |
+|---|---|---|
+| `/api/capture` | POST | Text capture → Claude parse |
+| `/api/capture/voice` | POST | Voice capture (audioObjectPath) → Whisper + Claude |
+| `/api/capture/voice/:id` | GET | Voice job status |
+| `/api/capture/:jobId/status` | GET | Capture job status (legacy path) |
+| `/api/threads/principal` | GET | Get/create principal_talk thread + messages |
+| `/api/threads/:id/messages` | GET | Paginated thread messages |
+| `/api/threads` | GET | List all threads |
+| `/api/today/brief` | GET | Today's brief (generate if missing) |
+| `/api/today/tasks` | GET | Prioritized task list for today |
+| `/api/today/recent-captures` | GET | Last 20 captures from Talk thread |
+| `/api/briefing/today` | GET | Today's briefing (legacy path) |
+| `/api/briefing/today/regenerate` | POST | Force-regenerate briefing |
+| `/api/tasks` | GET/POST | Task list + create |
+| `/api/tasks/:id` | GET/PATCH/DELETE | Task CRUD (soft delete) |
 | `/api/team` | GET | Team member list |
+| `/api/team/:id` | GET | Single team member |
+| `/api/principal` | GET/PATCH | Principal profile and preferences |
 | `/api/settings` | GET/PATCH | Feature flags |
-| `/api/threads/:threadId/messages` | GET | Thread history |
-| `/api/twilio/webhook` | POST | Incoming SMS (placeholder) |
-| `/api/storage/upload-url` | GET | Presigned upload URL |
+| `/api/storage/uploads/request-url` | POST | Presigned upload URL |
+| `/api/storage/objects/:path` | GET | Serve private object |
+| `/api/storage/public-objects/:path` | GET | Serve public asset |
 
-## Database (Drizzle ORM)
+## Database Schema (Phase 1)
 
-Tables: `principals`, `team_members`, `tasks`, `threads`, `thread_messages`, `feature_flags`
+All tables use serial integer PKs. Soft deletes via `deleted_at` for user-facing tables.
 
-Seed data: Selmen Hassen principal, 10 team members, `principal_talk` thread, 4 feature flags (all OFF).
+### Core Identity
+- **`principal`** — Single-row Selmen profile (fullName, primaryEmail `sel@takeoversrentals.com`, primaryPhone, briefingMorningTime `07:00`, briefingEveningTime `18:00`, timezone, killSwitch, preferences jsonb)
+- **`team_members`** — 10 seeded team members (name, role, phone, email, preferredCommsChannel, commsStyle, active)
+
+### Communication
+- **`threads`** — Conversation threads (threadType: principal_talk|team_member|system_internal, channel: sms|email|pwa, status: active|archived)
+- **`messages`** — All messages (role, content, direction: inbound|outbound, senderType: principal|agent|team_member|external, contentType: text|voice|image|file|system, contentUrl, transcriptionConfidence, claudeParse jsonb, audioObjectPath)
+
+### Tasks & Projects
+- **`tasks`** — Tasks (title, description, status: captured|dispatched|acknowledged|in_progress|blocked|complete|cancelled|open|done, priority: urgent|high|normal|low|medium|critical, ownerId, assigneeId, dueAt, proposedDueAt, authorityTier: A|B|C, tags jsonb, projectId, sourceJobId, soft delete)
+- **`projects`** — Projects (name, description, status: planning|active|paused|complete|cancelled, targetCompletion, leadId, riskLevel, milestones jsonb, soft delete)
+
+### Follow-up & Escalation
+- **`followups`** — Chase scheduler (taskId, scheduledFor, nudgeLevel 1-3, status: pending|sent|satisfied|cancelled|escalated, channel)
+- **`escalations`** — Escalation records (taskId, followupId, reason, recommendedAction, status: open|resolved|dismissed)
+
+### System
+- **`briefings`** — Daily briefs (date, markdown, generatedAt, openTasksCount, escalationCount)
+- **`capture_jobs`** — Background capture queue (jobId, status, audioObjectPath, rawText, transcript, parsedEntities jsonb, errorMessage)
+- **`feature_flags`** — Boolean feature flags (shadowTeamEnabled, twilioEnabled, autoBriefingEnabled, voiceMemoEnabled — all OFF by default)
+- **`agent_actions_log`** — Audit trail (action, entityType, entityId, payload jsonb, source)
+- **`schedules`** — Scheduled tasks/briefings (scheduleType: cron|one_time|recurring, cronExpression, nextRunAt, taskTemplate jsonb)
+
+## Capture Pipeline (Claude Prompt Format)
+
+Claude parses every capture into JSON:
+```json
+{
+  "type": "task|reminder|decision|context|question|draft_request|project",
+  "title": "short summary, max 100 chars",
+  "description": "full structured description",
+  "proposed_owner_hint": null | "team member name if mentioned",
+  "proposed_priority": "urgent|high|normal|low",
+  "proposed_due": null | "ISO timestamp",
+  "tags": ["array", "of", "tags"],
+  "requires_clarification": false,
+  "clarification_question": null | "question"
+}
+```
+
+Phase 1 does NOT dispatch to team members (that's Phase 2). `proposed_owner_hint` is captured but not acted on.
+
+## Principal Seed Data
+
+- **Name**: Selmen Hassen
+- **Email**: `sel@takeoversrentals.com`
+- **Briefing times**: 07:00 (morning), 18:00 (evening)
+- **Timezone**: America/New_York
 
 ## Key Commands
 
@@ -71,7 +141,8 @@ Seed data: Selmen Hassen principal, 10 team members, `principal_talk` thread, 4 
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks from OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/db run seed` — re-seed database
+- `pnpm --filter @workspace/scripts run seed` — re-seed database
+- `cd lib/db && npx tsc --build` — rebuild DB declaration files after schema changes
 
 ## Important Notes
 
@@ -79,6 +150,8 @@ Seed data: Selmen Hassen principal, 10 team members, `principal_talk` thread, 4 
 - **Clerk layers**: `@layer theme, base, clerk, components, utilities;` MUST precede `@import "tailwindcss"` in index.css
 - **PORT env**: Vite reads `PORT` from environment (set by Replit workflow system)
 - **BullMQ**: Disabled when no REDIS_URL; capture runs inline (acceptable for Phase 1)
-- **GetThreadMessagesParams**: only `limit` and `before` — no `offset` or `source`
+- **DB types**: After updating schema files, run `cd lib/db && npx tsc --build` before typechecking api-server (project references need fresh .d.ts)
+- **Principal thread**: Always looked up by `threadType = 'principal_talk'`, never by title
+- **Task default status**: New tasks created by capture get `status: 'captured'` (not 'open')
 
 See the `pnpm-workspace` skill for workspace structure details.

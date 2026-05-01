@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { randomUUID } from "crypto";
 import { db, captureJobsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { SubmitCaptureBody, GetCaptureJobStatusParams } from "@workspace/api-zod";
+import { SubmitCaptureBody, GetCaptureJobStatusParams, SubmitVoiceCaptureBody } from "@workspace/api-zod";
 import { enqueueCapture } from "../lib/queue";
 
 const router: IRouter = Router();
@@ -34,6 +34,56 @@ router.post("/capture", async (req, res): Promise<void> => {
   await enqueueCapture(jobId);
 
   res.status(202).json({ jobId, status: "queued" });
+});
+
+router.post("/capture/voice", async (req, res): Promise<void> => {
+  const parsed = SubmitVoiceCaptureBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { audioObjectPath, durationSeconds } = parsed.data;
+
+  const jobId = randomUUID();
+
+  await db.insert(captureJobsTable).values({
+    jobId,
+    status: "queued",
+    audioObjectPath,
+    rawText: null,
+    durationSeconds: durationSeconds ?? null,
+  });
+
+  await enqueueCapture(jobId);
+
+  res.status(202).json({ jobId, status: "queued" });
+});
+
+router.get("/capture/voice/:id", async (req, res): Promise<void> => {
+  const jobId = req.params.id;
+  if (!jobId) {
+    res.status(400).json({ error: "Missing job id" });
+    return;
+  }
+
+  const [job] = await db
+    .select()
+    .from(captureJobsTable)
+    .where(eq(captureJobsTable.jobId, jobId));
+
+  if (!job) {
+    res.status(404).json({ error: "Job not found" });
+    return;
+  }
+
+  res.json({
+    jobId: job.jobId,
+    status: job.status,
+    transcript: job.transcript ?? null,
+    parsedEntities: job.parsedEntities ?? null,
+    error: job.errorMessage ?? null,
+  });
 });
 
 router.get("/capture/:jobId/status", async (req, res): Promise<void> => {
