@@ -49,7 +49,7 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col w-[220px] shrink-0 bg-card border-r border-border">
+      <aside className="hidden sm:flex flex-col w-[220px] shrink-0 bg-card border-r border-border">
         {/* Logo + user info */}
         <div className="px-5 py-[22px] border-b border-border">
           <div className="font-display text-[22px] font-bold tracking-tight text-foreground">
@@ -135,7 +135,7 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
       {/* Main content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top bar (mobile only) */}
-        <div className="md:hidden flex items-center justify-between px-4 py-3 bg-card border-b border-border shrink-0">
+        <div className="sm:hidden flex items-center justify-between px-4 py-3 bg-card border-b border-border shrink-0">
           <div className="font-display text-lg font-bold">
             Take<span className="text-[#DC2A2A]">overs</span>
           </div>
@@ -150,7 +150,7 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
         </div>
 
         {/* Mobile bottom tab bar */}
-        <div className="md:hidden shrink-0 bg-card border-t border-border">
+        <div className="sm:hidden shrink-0 bg-card border-t border-border">
           <nav className="flex items-center justify-around px-1 py-1.5">
             {NAV_ITEMS.filter((item) => MOBILE_TABS.includes(item.id)).map((item) => {
               const isActive = activeTab === item.id;

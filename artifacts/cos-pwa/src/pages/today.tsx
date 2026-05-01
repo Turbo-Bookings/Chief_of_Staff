@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { RefreshCw, Loader2, CheckSquare, AlertTriangle, Check, Trash2, Mic, ChevronDown, ChevronUp, Pencil, X, Save } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import BriefingRenderer from "@/components/BriefingRenderer";
 import {
   useGetTodayBriefing,
   getGetTodayBriefingQueryKey,
@@ -307,7 +306,7 @@ export default function TodayPage() {
   const userCaptures = captureList.filter((m) => m.role === "user");
 
   return (
-    <div className="px-6 md:px-8 py-6 max-w-6xl mx-auto">
+    <div className="px-6 sm:px-8 py-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
@@ -375,7 +374,7 @@ export default function TodayPage() {
       </div>
 
       {/* 2-column desktop layout — briefing LEFT, tasks+captures RIGHT */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         {/* Left column: AI Briefing */}
         <div>
           <div className="font-mono text-[10px] text-[#DC2A2A] uppercase tracking-[0.12em] font-semibold mb-3">
@@ -411,11 +410,7 @@ export default function TodayPage() {
                   </button>
                 </div>
               ) : briefingData?.markdown ? (
-                <div className="prose prose-sm prose-invert max-w-none" data-testid="briefing-markdown">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {briefingData.markdown}
-                  </ReactMarkdown>
-                </div>
+                <BriefingRenderer markdown={briefingData.markdown} />
               ) : (
                 <div className="py-8 text-center space-y-3">
                   <div className="text-muted-foreground text-sm">No briefing for today yet.</div>

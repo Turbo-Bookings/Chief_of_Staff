@@ -2,7 +2,7 @@ import { FolderKanban } from "lucide-react";
 
 export default function ProjectsPage() {
   return (
-    <div className="px-6 md:px-8 py-6">
+    <div className="px-6 sm:px-8 py-6">
       <div className="mb-8">
         <div className="font-mono text-[10px] text-[#DC2A2A] uppercase tracking-[0.12em] font-semibold mb-0.5">
           &#8212; Projects
@@ -11,7 +11,7 @@ export default function ProjectsPage() {
           Active <em className="italic text-[#DC2A2A]">projects</em>
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Track milestones, blockers, and progress across all initiatives
+          Milestones, owners, and AI-generated status — all in one place
         </p>
       </div>
 
@@ -23,13 +23,14 @@ export default function ProjectsPage() {
           <FolderKanban size={24} className="text-[#A78BFA]" />
         </div>
         <div className="font-display text-xl font-semibold text-foreground mb-2">
-          Projects Coming Soon
+          Projects coming soon
         </div>
-        <div className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-          Voice-captured project notes will be organized here with milestones, owners, and AI-generated status updates.
+        <div className="text-sm text-muted-foreground max-w-sm leading-relaxed">
+          Voice-captured project notes will be organized here — with milestones, owners,
+          blockers, and AI-generated weekly status updates.
         </div>
         <div className="mt-6 font-mono text-[10px] text-muted-foreground uppercase tracking-[0.1em] px-3 py-1.5 bg-card border border-border rounded-full">
-          Phase 3 Feature
+          Phase 3 feature — coming soon
         </div>
       </div>
     </div>

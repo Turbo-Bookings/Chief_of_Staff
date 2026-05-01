@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { storageObjectUrl } from "@/lib/api-config";
+import { useAppStore } from "@/store/appStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Send, Mic, MicOff, Loader2, RefreshCw, Check, Pencil, X } from "lucide-react";
@@ -385,6 +386,7 @@ function VoiceStatusBanner({ voiceId, onDone }: { voiceId: number; onDone: () =>
 
 export default function TalkPage() {
   const queryClient = useQueryClient();
+  const { setRecordingState, setActiveCaptureId } = useAppStore();
   const [text, setText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [pendingJobId, setPendingJobId] = useState<string | null>(null);
@@ -513,16 +515,21 @@ export default function TalkPage() {
       mr.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunksRef.current, { type: mimeType });
+        setRecordingState("processing");
         try {
           const result = await submitVoiceCapture({ data: { audio: blob } });
           setPendingVoiceId(result.messageId);
+          setActiveCaptureId(result.messageId);
         } catch {
           toast.error("Failed to submit voice memo.");
+        } finally {
+          setRecordingState("idle");
         }
       };
       mr.start(100);
       mediaRecorderRef.current = mr;
       setIsRecording(true);
+      setRecordingState("recording");
     } catch {
       toast.error("Microphone access denied.");
     }
@@ -543,7 +550,7 @@ export default function TalkPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Page header */}
-      <div className="flex items-center justify-between px-6 md:px-8 py-4 border-b border-border bg-background/60 backdrop-blur-sm sticky top-0 z-10 shrink-0">
+      <div className="flex items-center justify-between px-6 sm:px-8 py-4 border-b border-border bg-background/60 backdrop-blur-sm sticky top-0 z-10 shrink-0">
         <div>
           <div className="font-mono text-[10px] text-[#DC2A2A] uppercase tracking-[0.12em] font-semibold mb-0.5">
             &#8212; Talk
@@ -577,7 +584,7 @@ export default function TalkPage() {
       {/* Messages */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto px-4 md:px-8 py-5 flex flex-col gap-[18px]"
+        className="flex-1 overflow-y-auto px-4 sm:px-8 py-5 flex flex-col gap-[18px]"
         data-testid="messages-container"
       >
         {messages.length === 0 && !isPending ? (

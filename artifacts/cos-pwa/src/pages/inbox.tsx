@@ -2,7 +2,7 @@ import { Inbox } from "lucide-react";
 
 export default function InboxPage() {
   return (
-    <div className="px-6 md:px-8 py-6">
+    <div className="px-6 sm:px-8 py-6">
       <div className="mb-8">
         <div className="font-mono text-[10px] text-[#DC2A2A] uppercase tracking-[0.12em] font-semibold mb-0.5">
           &#8212; Inbox
