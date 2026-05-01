@@ -1,14 +1,49 @@
 import { Queue, Worker, type Job } from "bullmq";
 import { logger } from "./logger";
-import { db, captureJobsTable } from "@workspace/db";
+import { db, captureJobsTable, messagesTable, agentActionsLogTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { processCaptureJob } from "./captureProcessor";
 import { generateBriefingForDate } from "./briefingGenerator";
 
 const REDIS_URL = process.env.REDIS_URL;
+const CAPTURE_MAX_ATTEMPTS = 3;
 
 export let captureQueue: Queue | null = null;
 let briefingQueue: Queue | null = null;
+
+async function handleFinalCaptureFailure(job: Job, err: Error): Promise<void> {
+  const { jobId, messageId } = job.data as { jobId: string; messageId?: number };
+
+  logger.error({ err, jobId, messageId, attempts: job.attemptsMade }, "Capture job exhausted all retries");
+
+  if (messageId) {
+    await db
+      .update(messagesTable)
+      .set({
+        content: "[transcription failed — tap to retry]",
+        transcriptionConfidence: "0.000",
+      })
+      .where(eq(messagesTable.id, messageId))
+      .catch((e) => logger.error({ e }, "Failed to update message with fallback"));
+
+    await db
+      .insert(agentActionsLogTable)
+      .values({
+        action: "capture_job_failed",
+        source: "capture",
+        entityType: "message",
+        entityId: String(messageId),
+        payload: { jobId, messageId, error: err.message, attempts: job.attemptsMade },
+      })
+      .catch((e) => logger.error({ e }, "Failed to log final capture failure to agent_actions_log"));
+  }
+
+  await db
+    .update(captureJobsTable)
+    .set({ status: "failed", errorMessage: err.message })
+    .where(eq(captureJobsTable.jobId, jobId))
+    .catch(() => {});
+}
 
 if (REDIS_URL) {
   const connection = { url: REDIS_URL };
@@ -19,24 +54,15 @@ if (REDIS_URL) {
     "capture",
     async (job: Job) => {
       const { jobId } = job.data as { jobId: string };
-      logger.info({ jobId }, "Processing capture job");
+      logger.info({ jobId, attempt: job.attemptsMade + 1 }, "Processing capture job");
 
       await db
         .update(captureJobsTable)
         .set({ status: "processing" })
         .where(eq(captureJobsTable.jobId, jobId));
 
-      try {
-        await processCaptureJob(jobId);
-        logger.info({ jobId }, "Capture job completed");
-      } catch (err) {
-        logger.error({ err, jobId }, "Capture job failed");
-        await db
-          .update(captureJobsTable)
-          .set({ status: "failed", errorMessage: String(err) })
-          .where(eq(captureJobsTable.jobId, jobId));
-        throw err;
-      }
+      await processCaptureJob(jobId);
+      logger.info({ jobId }, "Capture job completed");
     },
     {
       connection,
@@ -54,8 +80,15 @@ if (REDIS_URL) {
       .where(eq(captureJobsTable.jobId, jobId));
   });
 
-  captureWorker.on("failed", (job: Job | undefined, err: Error) => {
-    logger.error({ err, job: job?.id }, "Worker job failed");
+  captureWorker.on("failed", async (job: Job | undefined, err: Error) => {
+    if (!job) return;
+    const maxAttempts = (job.opts?.attempts ?? CAPTURE_MAX_ATTEMPTS);
+    if (job.attemptsMade >= maxAttempts) {
+      await handleFinalCaptureFailure(job, err);
+    } else {
+      const { jobId } = job.data as { jobId: string };
+      logger.warn({ err, jobId, attempt: job.attemptsMade, maxAttempts }, "Capture job failed, will retry");
+    }
   });
 
   briefingQueue = new Queue("briefing", { connection });
@@ -107,18 +140,39 @@ if (REDIS_URL) {
   logger.warn("REDIS_URL not set — BullMQ disabled, capture jobs run inline, briefing cron inactive");
 }
 
-export async function enqueueCapture(jobId: string): Promise<void> {
+export async function enqueueCapture(jobId: string, messageId?: number): Promise<void> {
   if (captureQueue) {
-    await captureQueue.add("capture", { jobId }, {
-      attempts: 3,
+    await captureQueue.add("capture", { jobId, messageId }, {
+      attempts: CAPTURE_MAX_ATTEMPTS,
       backoff: { type: "exponential", delay: 1000 },
       removeOnComplete: 10,
       removeOnFail: 10,
     });
   } else {
-    processCaptureJob(jobId).catch((err) => {
-      logger.error({ err, jobId }, "Inline capture processing failed");
-      db.update(captureJobsTable)
+    processCaptureJob(jobId).catch(async (err) => {
+      logger.error({ err, jobId }, "Inline capture processing failed after all retries");
+      if (messageId) {
+        await db
+          .update(messagesTable)
+          .set({
+            content: "[transcription failed — tap to retry]",
+            transcriptionConfidence: "0.000",
+          })
+          .where(eq(messagesTable.id, messageId))
+          .catch(() => {});
+
+        await db
+          .insert(agentActionsLogTable)
+          .values({
+            action: "capture_job_failed",
+            source: "capture",
+            entityType: "message",
+            entityId: String(messageId),
+            payload: { jobId, messageId, error: String(err) },
+          })
+          .catch(() => {});
+      }
+      await db.update(captureJobsTable)
         .set({ status: "failed", errorMessage: String(err) })
         .where(eq(captureJobsTable.jobId, jobId))
         .catch(() => {});

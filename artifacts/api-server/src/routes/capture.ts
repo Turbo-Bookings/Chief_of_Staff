@@ -54,7 +54,7 @@ router.post("/capture", async (req, res): Promise<void> => {
     rawText: text ?? null,
   });
 
-  await enqueueCapture(jobId);
+  await enqueueCapture(jobId, message!.id);
 
   res.status(202).json({ messageId: message!.id, jobId, status: "queued" });
 });
@@ -95,7 +95,7 @@ router.post("/capture/voice", async (req, res): Promise<void> => {
     durationSeconds: durationSeconds ?? null,
   });
 
-  await enqueueCapture(jobId);
+  await enqueueCapture(jobId, message!.id);
 
   res.status(202).json({ messageId: message!.id, status: "transcribing" });
 });

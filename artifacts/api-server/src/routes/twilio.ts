@@ -85,7 +85,7 @@ router.post("/webhooks/twilio/sms-inbound", twilioSignatureMiddleware, async (re
     rawText: contentType === "text" ? messageBody : null,
   });
 
-  await enqueueCapture(jobId);
+  await enqueueCapture(jobId, message!.id);
 
   logger.info({ jobId, messageId: message!.id, from }, "Capture job enqueued for inbound SMS");
 
@@ -112,6 +112,15 @@ router.post("/twilio/incoming", twilioSignatureMiddleware, (req, res): void => {
   logger.info({ from, body }, "Twilio incoming SMS webhook (legacy path)");
   res.setHeader("Content-Type", "text/xml");
   res.send(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`);
+});
+
+router.post("/twilio/voice", twilioSignatureMiddleware, (req, res): void => {
+  const from = (req.body as Record<string, string>).From ?? "unknown";
+  logger.info({ from }, "Twilio voice webhook — PLACEHOLDER, not yet active");
+  res.setHeader("Content-Type", "text/xml");
+  res.send(
+    `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling Takeovers Rentals. Please leave a message after the tone.</Say></Response>`,
+  );
 });
 
 export default router;

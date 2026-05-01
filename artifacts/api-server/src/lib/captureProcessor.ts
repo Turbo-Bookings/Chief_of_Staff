@@ -1,10 +1,9 @@
 import { db, captureJobsTable, tasksTable, threadsTable, messagesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger";
+import { ObjectStorageService } from "./objectStorage";
 import Anthropic from "@anthropic-ai/sdk";
-import OpenAI from "openai";
-import fs from "fs";
-import path from "path";
+import OpenAI, { toFile } from "openai";
 
 const anthropicClient = new Anthropic({
   apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
@@ -15,6 +14,8 @@ const openaiClient = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+const objectStorage = new ObjectStorageService();
 
 const WHISPER_PROMPT =
   "Selmen Hassen, CEO, Takeovers Rentals. Team: Oscar, Nick, Josh, Orlando, Joan, Kathy, Karina, Tahir, Richard, Brandon. " +
@@ -75,6 +76,39 @@ export async function getOrCreatePrincipalThread() {
   return created!;
 }
 
+export async function transcribeVoiceMemo(contentUrl: string): Promise<{ text: string; confidence: string }> {
+  const objectFile = await objectStorage.getObjectEntityFile(contentUrl);
+
+  const chunks: Buffer[] = [];
+  const stream = objectFile.createReadStream();
+
+  await new Promise<void>((resolve, reject) => {
+    stream.on("data", (chunk: Buffer) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    stream.on("end", resolve);
+    stream.on("error", reject);
+  });
+
+  const audioBuffer = Buffer.concat(chunks);
+
+  const filename = contentUrl.split("/").pop() ?? "audio.webm";
+  const audioFile = await toFile(audioBuffer, filename, { type: "audio/webm" });
+
+  const transcription = await openaiClient.audio.transcriptions.create({
+    file: audioFile,
+    model: "whisper-1",
+    prompt: WHISPER_PROMPT,
+    response_format: "verbose_json",
+  });
+
+  const avgLogprob = (transcription as unknown as { avg_logprob?: number }).avg_logprob;
+  const confidence =
+    typeof avgLogprob === "number"
+      ? Math.min(1, Math.max(0, (avgLogprob + 2) / 2)).toFixed(3)
+      : "0.500";
+
+  return { text: transcription.text, confidence };
+}
+
 export async function processCaptureJob(jobId: string): Promise<void> {
   const [job] = await db
     .select()
@@ -100,44 +134,19 @@ export async function processCaptureJob(jobId: string): Promise<void> {
   }
 
   let transcript = message.content;
-  let transcriptionConfidence: string | null = null;
 
   if (message.contentType === "voice" && message.contentUrl) {
     logger.info({ jobId, messageId, contentUrl: message.contentUrl }, "Transcribing audio via Whisper");
-    const objectPath = message.contentUrl.replace(/^\/objects\//, "");
-    const privateDir = process.env.PRIVATE_OBJECT_DIR ?? "/tmp/objects";
-    const filePath = path.join(privateDir, objectPath);
 
-    if (fs.existsSync(filePath)) {
-      try {
-        const fileStream = fs.createReadStream(filePath);
-        const transcription = await openaiClient.audio.transcriptions.create({
-          file: fileStream as unknown as File,
-          model: "whisper-1",
-          prompt: WHISPER_PROMPT,
-          response_format: "verbose_json",
-        });
-        transcript = transcription.text;
-        const avgLogprob = (transcription as unknown as { avg_logprob?: number }).avg_logprob;
-        if (typeof avgLogprob === "number") {
-          transcriptionConfidence = Math.min(1, Math.max(0, (avgLogprob + 2) / 2)).toFixed(3);
-        }
-        logger.info({ jobId, messageId, transcriptLength: transcript.length }, "Transcription complete");
-      } catch (err) {
-        logger.error({ err, jobId, messageId }, "Whisper transcription failed — using fallback");
-        transcript = "[transcription failed — tap to retry]";
-        transcriptionConfidence = "0.000";
-      }
-    } else {
-      logger.warn({ jobId, messageId, filePath }, "Audio file not found");
-      transcript = "[Audio file not accessible]";
-      transcriptionConfidence = "0.000";
-    }
+    const { text, confidence } = await transcribeVoiceMemo(message.contentUrl);
+    transcript = text;
 
     await db
       .update(messagesTable)
-      .set({ content: transcript, transcriptionConfidence })
+      .set({ content: transcript, transcriptionConfidence: confidence })
       .where(eq(messagesTable.id, messageId));
+
+    logger.info({ jobId, messageId, transcriptLength: transcript.length }, "Transcription complete");
   }
 
   const response = await anthropicClient.messages.create({
@@ -200,7 +209,7 @@ export async function processCaptureJob(jobId: string): Promise<void> {
 
   await db
     .update(threadsTable)
-    .set({ lastMessageAt: new Date(), messageCount: principalThread.messageCount + 1 })
+    .set({ lastMessageAt: new Date(), messageCount: (principalThread.messageCount ?? 0) + 1 })
     .where(eq(threadsTable.id, principalThread.id));
 
   await db
