@@ -4,7 +4,10 @@ import { randomUUID } from "crypto";
 import { db, captureJobsTable, messagesTable, agentActionsLogTable } from "@workspace/db";
 import { enqueueCapture } from "../lib/queue";
 import { getOrCreatePrincipalThread } from "../lib/captureProcessor";
+import { ObjectStorageService } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
+
+const objectStorage = new ObjectStorageService();
 
 const router: IRouter = Router();
 
@@ -69,8 +72,31 @@ router.post("/webhooks/twilio/sms-inbound", twilioSignatureMiddleware, async (re
 
   const principalThread = await getOrCreatePrincipalThread();
 
-  const contentType: "text" | "voice" = numMedia > 0 && mediaUrl ? "voice" : "text";
-  const audioObjectPath = contentType === "voice" ? mediaUrl ?? null : null;
+  const isVoice = numMedia > 0 && !!mediaUrl;
+  const contentType: "text" | "voice" = isVoice ? "voice" : "text";
+  let audioObjectPath: string | null = null;
+
+  if (isVoice && mediaUrl) {
+    try {
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const mediaRes = await fetch(mediaUrl, {
+        headers: authToken && accountSid
+          ? { Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}` }
+          : {},
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!mediaRes.ok) throw new Error(`Twilio media fetch failed: ${mediaRes.status}`);
+      const mimeType = mediaRes.headers.get("content-type") ?? "audio/ogg";
+      const buffer = Buffer.from(await mediaRes.arrayBuffer());
+      const ext = mimeType.split("/")[1]?.split(";")[0] ?? "ogg";
+      audioObjectPath = await objectStorage.uploadObjectEntity(buffer, `twilio-mms.${ext}`, mimeType);
+      logger.info({ audioObjectPath, bytes: buffer.length }, "Twilio MMS media re-uploaded to object storage");
+    } catch (err) {
+      logger.error({ err, mediaUrl }, "Failed to download/re-upload Twilio MMS media — treating as text");
+      audioObjectPath = null;
+    }
+  }
 
   const [message] = await db
     .insert(messagesTable)
@@ -81,7 +107,7 @@ router.post("/webhooks/twilio/sms-inbound", twilioSignatureMiddleware, async (re
       audioObjectPath,
       direction: "inbound",
       senderType: "principal",
-      contentType,
+      contentType: audioObjectPath ? "voice" : "text",
       contentUrl: audioObjectPath,
       externalId: body.MessageSid ?? null,
     })
@@ -94,7 +120,7 @@ router.post("/webhooks/twilio/sms-inbound", twilioSignatureMiddleware, async (re
     messageId: message!.id,
     status: "queued",
     audioObjectPath,
-    rawText: contentType === "text" ? messageBody : null,
+    rawText: !audioObjectPath ? messageBody : null,
   });
 
   await enqueueCapture(jobId, message!.id);

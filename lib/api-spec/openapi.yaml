@@ -784,6 +784,8 @@ components:
           example:
             postgres: ok
             redis: not_configured
+            object_storage: ok
+            ai_proxy: ok
 
     ErrorEnvelope:
       type: object

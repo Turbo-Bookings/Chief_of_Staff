@@ -18,21 +18,16 @@ function serializePrincipal(p: typeof principalTable.$inferSelect) {
   };
 }
 
-router.get("/principal", async (req, res): Promise<void> => {
-  const [principal] = await db.select().from(principalTable).limit(1);
-
-  if (!principal) {
+router.get("/principal", (req, res): void => {
+  if (!req.principal) {
     res.status(404).json({ error: "Principal not found" });
     return;
   }
-
-  res.json(serializePrincipal(principal));
+  res.json(serializePrincipal(req.principal));
 });
 
 router.patch("/principal", async (req, res): Promise<void> => {
-  const [principal] = await db.select().from(principalTable).limit(1);
-
-  if (!principal) {
+  if (!req.principal) {
     res.status(404).json({ error: "Principal not found" });
     return;
   }
@@ -71,7 +66,7 @@ router.patch("/principal", async (req, res): Promise<void> => {
   const [updated] = await db
     .update(principalTable)
     .set(updates)
-    .where(eq(principalTable.id, principal.id))
+    .where(eq(principalTable.id, req.principal.id))
     .returning();
 
   if (!updated) {
