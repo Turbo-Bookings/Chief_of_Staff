@@ -12,6 +12,7 @@ export const tasksTable = pgTable("tasks", {
   assigneeId: integer("assignee_id").references(() => teamMembersTable.id),
   dueDate: date("due_date"),
   sourceJobId: text("source_job_id"),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

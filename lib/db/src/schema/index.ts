@@ -6,3 +6,4 @@ export * from "./tasks";
 export * from "./briefings";
 export * from "./captureJobs";
 export * from "./featureFlags";
+export * from "./agentActionsLog";

@@ -10,6 +10,8 @@ export const teamMembersTable = pgTable("team_members", {
   email: text("email"),
   avatarUrl: text("avatar_url"),
   isActive: boolean("is_active").notNull().default(true),
+  preferredCommsChannel: text("preferred_comms_channel", { enum: ["slack", "sms", "email", "whatsapp"] }),
+  commsStyle: text("comms_style"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

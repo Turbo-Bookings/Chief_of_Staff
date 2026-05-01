@@ -3,10 +3,12 @@ import { logger } from "./logger";
 import { db, captureJobsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { processCaptureJob } from "./captureProcessor";
+import { generateBriefingForDate } from "./briefingGenerator";
 
 const REDIS_URL = process.env.REDIS_URL;
 
 export let captureQueue: Queue | null = null;
+let briefingQueue: Queue | null = null;
 
 if (REDIS_URL) {
   const connection = { url: REDIS_URL };
@@ -36,7 +38,12 @@ if (REDIS_URL) {
         throw err;
       }
     },
-    { connection },
+    {
+      connection,
+      settings: {
+        backoffStrategy: (attemptsMade: number) => Math.pow(2, attemptsMade) * 1000,
+      },
+    },
   );
 
   captureWorker.on("completed", async (job: Job) => {
@@ -51,14 +58,63 @@ if (REDIS_URL) {
     logger.error({ err, job: job?.id }, "Worker job failed");
   });
 
-  logger.info("BullMQ capture queue and worker initialized");
+  briefingQueue = new Queue("briefing", { connection });
+
+  const briefingWorker = new Worker(
+    "briefing",
+    async (_job: Job) => {
+      const dateStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+      logger.info({ dateStr }, "Generating scheduled briefing");
+      try {
+        await generateBriefingForDate(dateStr);
+        logger.info({ dateStr }, "Scheduled briefing generated");
+      } catch (err) {
+        logger.error({ err, dateStr }, "Failed to generate scheduled briefing");
+        throw err;
+      }
+    },
+    { connection },
+  );
+
+  briefingWorker.on("failed", (job: Job | undefined, err: Error) => {
+    logger.error({ err, job: job?.id }, "Briefing cron job failed");
+  });
+
+  briefingQueue.add(
+    "morning-briefing",
+    {},
+    {
+      repeat: { pattern: "0 7 * * *", tz: "America/New_York" },
+      jobId: "morning-briefing",
+      removeOnComplete: 3,
+      removeOnFail: 3,
+    },
+  ).catch((err) => logger.error({ err }, "Failed to schedule morning briefing"));
+
+  briefingQueue.add(
+    "evening-briefing",
+    {},
+    {
+      repeat: { pattern: "0 18 * * *", tz: "America/New_York" },
+      jobId: "evening-briefing",
+      removeOnComplete: 3,
+      removeOnFail: 3,
+    },
+  ).catch((err) => logger.error({ err }, "Failed to schedule evening briefing"));
+
+  logger.info("BullMQ queues initialized: capture + briefing cron (7 AM / 6 PM ET)");
 } else {
-  logger.warn("REDIS_URL not set — BullMQ disabled, capture jobs run inline");
+  logger.warn("REDIS_URL not set — BullMQ disabled, capture jobs run inline, briefing cron inactive");
 }
 
 export async function enqueueCapture(jobId: string): Promise<void> {
   if (captureQueue) {
-    await captureQueue.add("capture", { jobId });
+    await captureQueue.add("capture", { jobId }, {
+      attempts: 3,
+      backoff: { type: "exponential", delay: 1000 },
+      removeOnComplete: 10,
+      removeOnFail: 10,
+    });
   } else {
     processCaptureJob(jobId).catch((err) => {
       logger.error({ err, jobId }, "Inline capture processing failed");

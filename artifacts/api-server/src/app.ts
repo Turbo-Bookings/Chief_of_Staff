@@ -1,7 +1,7 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
-import { clerkMiddleware } from "@clerk/express";
+import { clerkMiddleware, requireAuth } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import {
   CLERK_PROXY_PATH,
@@ -47,6 +47,15 @@ app.use(
     ),
   })),
 );
+
+const PUBLIC_PATHS = ["/healthz", "/twilio/incoming", "/twilio/voice"];
+
+app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+  if (PUBLIC_PATHS.some((p) => req.path === p || req.path.startsWith(p + "/"))) {
+    return next();
+  }
+  return requireAuth()(req, res, next);
+});
 
 app.use("/api", router);
 
