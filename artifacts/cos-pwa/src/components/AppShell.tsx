@@ -1,3 +1,4 @@
+import React from "react";
 import { Link } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
 import {
@@ -11,11 +12,20 @@ import {
   LogOut,
 } from "lucide-react";
 
-const NAV_ITEMS = [
+type NavItem = {
+  id: string;
+  label: string;
+  href: string;
+  icon: React.FC<{ size?: number; strokeWidth?: number; className?: string }>;
+  section: string;
+  badge?: string;
+};
+
+const NAV_ITEMS: NavItem[] = [
   { id: "talk", label: "Talk", href: "/talk", icon: Mic2, section: "Command" },
   { id: "today", label: "Today", href: "/today", icon: CalendarDays, section: "Command" },
-  { id: "approvals", label: "Approvals", href: "/approvals", icon: CheckCheck, section: "Operations", badge: "3" },
-  { id: "inbox", label: "Inbox", href: "/inbox", icon: Inbox, section: "Operations", badge: "12" },
+  { id: "approvals", label: "Approvals", href: "/approvals", icon: CheckCheck, section: "Operations" },
+  { id: "inbox", label: "Inbox", href: "/inbox", icon: Inbox, section: "Operations" },
   { id: "team", label: "Team", href: "/team", icon: Users, section: "Operations" },
   { id: "projects", label: "Projects", href: "/projects", icon: FolderKanban, section: "Intelligence" },
   { id: "insights", label: "Insights", href: "/insights", icon: BarChart3, section: "Intelligence" },
@@ -86,7 +96,7 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
                         className={`shrink-0 ${isActive ? "opacity-100" : "opacity-70"}`}
                       />
                       <span className="flex-1">{item.label}</span>
-                      {"badge" in item && item.badge && (
+                      {item.badge && (
                         <span className="bg-[#DC2A2A] text-white font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold">
                           {item.badge}
                         </span>
@@ -149,7 +159,7 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
                   }`}
                 >
                   <Icon size={18} strokeWidth={isActive ? 2 : 1.5} />
-                  {"badge" in item && item.badge && (
+                  {item.badge && (
                     <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-[#DC2A2A] text-white text-[8px] font-bold rounded-full flex items-center justify-center">
                       {item.badge}
                     </span>
