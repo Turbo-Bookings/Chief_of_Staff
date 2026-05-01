@@ -1,0 +1,70 @@
+import { db, principalTable, teamMembersTable, threadsTable, featureFlagsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+
+async function seed() {
+  console.log("Seeding database...");
+
+  const [existingPrincipal] = await db.select().from(principalTable).limit(1);
+  if (!existingPrincipal) {
+    await db.insert(principalTable).values({
+      name: "Selmen Hassen",
+      phone: "+1-PLACEHOLDER-PRINCIPAL",
+    });
+    console.log("Created principal: Selmen Hassen");
+  }
+
+  const existingMembers = await db.select().from(teamMembersTable).limit(1);
+  if (existingMembers.length === 0) {
+    const members = [
+      { name: "Oscar", role: "Operations Manager", phone: "+1-PLACEHOLDER-OSCAR" },
+      { name: "Nick", role: "Property Manager", phone: "+1-PLACEHOLDER-NICK" },
+      { name: "Josh", role: "Maintenance Lead", phone: "+1-PLACEHOLDER-JOSH" },
+      { name: "Orlando", role: "Leasing Agent", phone: "+1-PLACEHOLDER-ORLANDO" },
+      { name: "Joan", role: "Accounting", phone: "+1-PLACEHOLDER-JOAN" },
+      { name: "Kathy", role: "Guest Relations", phone: "+1-PLACEHOLDER-KATHY" },
+      { name: "Karina", role: "Marketing", phone: "+1-PLACEHOLDER-KARINA" },
+      { name: "Tahir", role: "IT & Systems", phone: "+1-PLACEHOLDER-TAHIR" },
+      { name: "Richard", role: "Legal & Compliance", phone: "+1-PLACEHOLDER-RICHARD" },
+      { name: "Brandon", role: "Revenue Manager", phone: "+1-PLACEHOLDER-BRANDON" },
+    ];
+
+    await db.insert(teamMembersTable).values(members);
+    console.log(`Created ${members.length} team members`);
+  }
+
+  const [existingThread] = await db
+    .select()
+    .from(threadsTable)
+    .where(eq(threadsTable.title, "principal_talk"))
+    .limit(1);
+
+  if (!existingThread) {
+    await db.insert(threadsTable).values({
+      title: "principal_talk",
+      messageCount: 0,
+    });
+    console.log("Created principal_talk thread");
+  }
+
+  const flagNames = ["shadowTeamEnabled", "twilioEnabled", "autoBriefingEnabled", "voiceMemoEnabled"];
+  for (const name of flagNames) {
+    const [existing] = await db
+      .select()
+      .from(featureFlagsTable)
+      .where(eq(featureFlagsTable.name, name))
+      .limit(1);
+
+    if (!existing) {
+      await db.insert(featureFlagsTable).values({ name, enabled: false });
+    }
+  }
+  console.log("Feature flags initialized (all OFF)");
+
+  console.log("Seeding complete!");
+  process.exit(0);
+}
+
+seed().catch((err) => {
+  console.error("Seed failed:", err);
+  process.exit(1);
+});

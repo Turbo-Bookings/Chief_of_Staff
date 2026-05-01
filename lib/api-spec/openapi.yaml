@@ -3,13 +3,29 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Takeovers CoS API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: capture
+    description: Voice/text capture and ingestion
+  - name: briefing
+    description: Daily briefing (Today tab)
+  - name: tasks
+    description: Task management
+  - name: team
+    description: Team members
+  - name: settings
+    description: App settings and feature flags
+  - name: twilio
+    description: Twilio webhook endpoints
+  - name: threads
+    description: Conversation threads
+  - name: storage
+    description: Object storage upload and serving endpoints
 paths:
   /healthz:
     get:
@@ -24,6 +40,475 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /capture:
+    post:
+      operationId: submitCapture
+      tags: [capture]
+      summary: Submit a voice or text capture
+      description: |
+        Accepts audio file path (from object storage) or raw text. Enqueues
+        a job to transcribe (if audio) and parse with Claude. Returns a job ID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitCaptureBody"
+      responses:
+        "202":
+          description: Capture job enqueued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaptureJobResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /capture/{jobId}/status:
+    get:
+      operationId: getCaptureJobStatus
+      tags: [capture]
+      summary: Get the status of a capture job
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaptureJobStatus"
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /briefing/today:
+    get:
+      operationId: getTodayBriefing
+      tags: [briefing]
+      summary: Get today's briefing
+      description: Returns the current day's briefing, generating it if needed
+      responses:
+        "200":
+          description: Today's briefing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Briefing"
+        "500":
+          description: Error generating briefing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /briefing/today/regenerate:
+    post:
+      operationId: regenerateTodayBriefing
+      tags: [briefing]
+      summary: Force-regenerate today's briefing
+      responses:
+        "200":
+          description: Freshly generated briefing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Briefing"
+        "500":
+          description: Error generating briefing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /tasks:
+    get:
+      operationId: listTasks
+      tags: [tasks]
+      summary: List tasks
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [open, in_progress, done, blocked]
+        - name: assigneeId
+          in: query
+          required: false
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Task list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+    post:
+      operationId: createTask
+      tags: [tasks]
+      summary: Create a new task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskBody"
+      responses:
+        "201":
+          description: Created task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /tasks/{id}:
+    get:
+      operationId: getTask
+      tags: [tasks]
+      summary: Get a single task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    patch:
+      operationId: updateTask
+      tags: [tasks]
+      summary: Update a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTaskBody"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    delete:
+      operationId: deleteTask
+      tags: [tasks]
+      summary: Delete a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /team:
+    get:
+      operationId: listTeamMembers
+      tags: [team]
+      summary: List team members
+      responses:
+        "200":
+          description: Team member list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TeamMember"
+
+  /team/{id}:
+    get:
+      operationId: getTeamMember
+      tags: [team]
+      summary: Get a single team member
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Team member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamMember"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get app settings and feature flags
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppSettings"
+    patch:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update feature flags or settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsBody"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppSettings"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /twilio/incoming:
+    post:
+      operationId: twilioIncomingSms
+      tags: [twilio]
+      summary: Twilio incoming SMS webhook (placeholder)
+      responses:
+        "200":
+          description: Webhook received
+          content:
+            text/xml:
+              schema:
+                type: string
+
+  /twilio/voice:
+    post:
+      operationId: twilioVoice
+      tags: [twilio]
+      summary: Twilio voice webhook (placeholder)
+      responses:
+        "200":
+          description: Webhook received
+          content:
+            text/xml:
+              schema:
+                type: string
+
+  /threads:
+    get:
+      operationId: listThreads
+      tags: [threads]
+      summary: List conversation threads
+      responses:
+        "200":
+          description: Thread list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Thread"
+
+  /threads/{id}/messages:
+    get:
+      operationId: getThreadMessages
+      tags: [threads]
+      summary: Get messages in a thread
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: before
+          in: query
+          required: false
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+        "404":
+          description: Thread not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /storage/uploads/request-url:
+    post:
+      tags: [storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      description: |
+        Returns a presigned GCS URL for direct upload. The client sends JSON
+        metadata here, then uploads the file directly to the returned URL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadUrlRequest'
+      responses:
+        '200':
+          description: Presigned upload URL generated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadUrlResponse'
+        '400':
+          description: Missing or invalid required fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Failed to generate upload URL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /storage/public-objects/{filePath}:
+    get:
+      tags: [storage]
+      operationId: getPublicObject
+      summary: Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+      parameters:
+        - name: filePath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object content streamed with correct Content-Type.
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: File not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Failed to serve public object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /storage/objects/{objectPath}:
+    get:
+      tags: [storage]
+      operationId: getStorageObject
+      summary: Serve an object entity from PRIVATE_OBJECT_DIR
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object content streamed with correct Content-Type.
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Object not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Failed to serve object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +519,271 @@ components:
       required:
         - status
 
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    SubmitCaptureBody:
+      type: object
+      properties:
+        audioObjectPath:
+          type: ["string", "null"]
+          description: Object storage path of the uploaded audio file (optional)
+        text:
+          type: ["string", "null"]
+          description: Raw text input (alternative to audio)
+        durationSeconds:
+          type: ["number", "null"]
+          description: Duration of audio in seconds
+      description: Either audioObjectPath or text must be provided
+
+    CaptureJobResponse:
+      type: object
+      required: [jobId, status]
+      properties:
+        jobId:
+          type: string
+        status:
+          type: string
+          enum: [queued, processing, done, failed]
+
+    CaptureJobStatus:
+      type: object
+      required: [jobId, status]
+      properties:
+        jobId:
+          type: string
+        status:
+          type: string
+          enum: [queued, processing, done, failed]
+        transcript:
+          type: ["string", "null"]
+        parsedEntities:
+          $ref: "#/components/schemas/ParsedEntities"
+        error:
+          type: ["string", "null"]
+
+    ParsedEntities:
+      type: object
+      properties:
+        tasks:
+          type: array
+          items:
+            type: object
+        followups:
+          type: array
+          items:
+            type: object
+        escalations:
+          type: array
+          items:
+            type: object
+
+    Briefing:
+      type: object
+      required: [id, date, markdown, generatedAt]
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+          format: date
+        markdown:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        openTasksCount:
+          type: ["integer", "null"]
+        escalationCount:
+          type: ["integer", "null"]
+
+    Task:
+      type: object
+      required: [id, title, status, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [open, in_progress, done, blocked]
+        priority:
+          type: ["string", "null"]
+          enum: [low, medium, high, critical, null]
+        assigneeId:
+          type: ["integer", "null"]
+        assigneeName:
+          type: ["string", "null"]
+        dueDate:
+          type: ["string", "null"]
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateTaskBody:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [open, in_progress, done, blocked]
+          default: open
+        priority:
+          type: ["string", "null"]
+          enum: [low, medium, high, critical, null]
+        assigneeId:
+          type: ["integer", "null"]
+        dueDate:
+          type: ["string", "null"]
+          format: date
+
+    UpdateTaskBody:
+      type: object
+      properties:
+        title:
+          type: ["string", "null"]
+          minLength: 1
+        description:
+          type: ["string", "null"]
+        status:
+          type: ["string", "null"]
+          enum: [open, in_progress, done, blocked, null]
+        priority:
+          type: ["string", "null"]
+          enum: [low, medium, high, critical, null]
+        assigneeId:
+          type: ["integer", "null"]
+        dueDate:
+          type: ["string", "null"]
+          format: date
+
+    TeamMember:
+      type: object
+      required: [id, name, role]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        role:
+          type: string
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+
+    AppSettings:
+      type: object
+      required: [flags]
+      properties:
+        flags:
+          $ref: "#/components/schemas/FeatureFlags"
+        principalName:
+          type: ["string", "null"]
+        principalPhone:
+          type: ["string", "null"]
+
+    FeatureFlags:
+      type: object
+      properties:
+        shadowTeamEnabled:
+          type: boolean
+        twilioEnabled:
+          type: boolean
+        autoBriefingEnabled:
+          type: boolean
+        voiceMemoEnabled:
+          type: boolean
+
+    UpdateSettingsBody:
+      type: object
+      properties:
+        flags:
+          $ref: "#/components/schemas/FeatureFlags"
+
+    Thread:
+      type: object
+      required: [id, title, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        lastMessageAt:
+          type: ["string", "null"]
+          format: date-time
+        messageCount:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    Message:
+      type: object
+      required: [id, threadId, role, content, createdAt]
+      properties:
+        id:
+          type: integer
+        threadId:
+          type: integer
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: string
+        audioObjectPath:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Original file name.
+        size:
+          type: integer
+          minimum: 1
+          description: File size in bytes.
+        contentType:
+          type: string
+          minLength: 1
+          description: MIME type of the file (e.g. `image/jpeg`).
+
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL:
+          type: string
+          format: uri
+          description: Presigned GCS URL for PUT upload.
+        objectPath:
+          type: string
+          description: Normalized object path (e.g. `/objects/uploads/uuid`). Store this in your database.
+        metadata:
+          $ref: '#/components/schemas/UploadUrlRequest'
