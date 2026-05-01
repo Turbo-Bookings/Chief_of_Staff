@@ -46,6 +46,57 @@ function RecordingWaveform() {
   );
 }
 
+const PARSE_TYPE_COLOR: Record<string, string> = {
+  task: "text-[#4ADE80] bg-[#4ADE80]/10 border-[#4ADE80]/20",
+  reminder: "text-[#6BA4FF] bg-[#6BA4FF]/10 border-[#6BA4FF]/20",
+  decision: "text-[#A78BFA] bg-[#A78BFA]/10 border-[#A78BFA]/20",
+  context: "text-muted-foreground bg-accent border-border",
+  project: "text-[#F5A524] bg-[#F5A524]/10 border-[#F5A524]/20",
+  draft_request: "text-[#DC2A2A] bg-[#DC2A2A]/10 border-[#DC2A2A]/20",
+  question: "text-[#F5A524] bg-[#F5A524]/10 border-[#F5A524]/20",
+};
+
+function ClaudeParseCard({ parse }: { parse: Record<string, unknown> }) {
+  const type = parse["type"] as string | undefined;
+  const title = parse["title"] as string | undefined;
+  const priority = (parse["proposedPriority"] ?? parse["proposed_priority"]) as string | undefined;
+  const due = (parse["proposedDue"] ?? parse["proposed_due"]) as string | undefined;
+  const tags = (parse["tags"] as string[] | undefined) ?? [];
+
+  if (!title) return null;
+
+  const typeClass = type ? (PARSE_TYPE_COLOR[type] ?? PARSE_TYPE_COLOR["context"]) : PARSE_TYPE_COLOR["context"];
+
+  return (
+    <div className="mt-2 ml-0 bg-card border border-border rounded-[8px] px-3 py-2.5 max-w-[80%]">
+      <div className="flex items-center gap-2 mb-1.5">
+        {type && (
+          <span className={`font-mono text-[8px] uppercase tracking-[0.12em] font-bold px-1.5 py-0.5 rounded border ${typeClass}`}>
+            {type.replace(/_/g, " ")}
+          </span>
+        )}
+        <span className="font-mono text-[8px] text-[#4ADE80] uppercase tracking-wider">Captured</span>
+      </div>
+      <div className="text-[13px] font-medium text-foreground leading-snug">{title}</div>
+      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+        {priority && (
+          <span className="font-mono text-[8px] text-muted-foreground uppercase tracking-wider">{priority}</span>
+        )}
+        {due && (
+          <span className="font-mono text-[8px] text-muted-foreground">
+            Due {new Date(due).toLocaleDateString([], { month: "short", day: "numeric" })}
+          </span>
+        )}
+        {tags.slice(0, 3).map((tag) => (
+          <span key={tag} className="font-mono text-[8px] bg-accent px-1.5 py-0.5 rounded text-muted-foreground border border-border">
+            {tag}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function VoiceMessageRow({ msg }: { msg: Message }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -111,6 +162,10 @@ function MessageBubble({ msg }: { msg: Message }) {
   const isUser = msg.role === "user";
   const isVoice = msg.contentType === "voice";
 
+  const parsedCard = msg.claudeParse ? (
+    <ClaudeParseCard parse={msg.claudeParse as Record<string, unknown>} />
+  ) : null;
+
   if (isUser && isVoice) {
     return (
       <div data-testid={`message-${msg.role}`} className="flex flex-col items-end gap-1">
@@ -118,6 +173,7 @@ function MessageBubble({ msg }: { msg: Message }) {
         <div className="font-mono text-[9px] text-muted-foreground">
           {formatTime(msg.createdAt)}
         </div>
+        {parsedCard}
       </div>
     );
   }
@@ -125,31 +181,34 @@ function MessageBubble({ msg }: { msg: Message }) {
   return (
     <div
       data-testid={`message-${msg.role}`}
-      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+      className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}
     >
-      {!isUser && (
-        <div className="w-7 h-7 rounded-full bg-[rgba(220,42,42,0.15)] border border-[#DC2A2A]/20 flex items-center justify-center mr-2 mt-1 shrink-0">
-          <span className="font-mono text-[9px] text-[#DC2A2A] font-bold">AI</span>
-        </div>
-      )}
-      <div className="max-w-[80%]">
-        <div
-          className={`rounded-[10px] px-3.5 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap ${
-            isUser
-              ? "bg-[#DC2A2A] text-white rounded-br-[2px]"
-              : "bg-accent border border-border text-foreground rounded-bl-[2px]"
-          }`}
-        >
-          {msg.content}
-        </div>
-        <div
-          className={`mt-1 font-mono text-[9px] text-muted-foreground ${
-            isUser ? "text-right" : "text-left"
-          }`}
-        >
-          {formatTime(msg.createdAt)}
+      <div className={`flex ${isUser ? "justify-end" : "justify-start"} w-full`}>
+        {!isUser && (
+          <div className="w-7 h-7 rounded-full bg-[rgba(220,42,42,0.15)] border border-[#DC2A2A]/20 flex items-center justify-center mr-2 mt-1 shrink-0">
+            <span className="font-mono text-[9px] text-[#DC2A2A] font-bold">AI</span>
+          </div>
+        )}
+        <div className="max-w-[80%]">
+          <div
+            className={`rounded-[10px] px-3.5 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap ${
+              isUser
+                ? "bg-[#DC2A2A] text-white rounded-br-[2px]"
+                : "bg-accent border border-border text-foreground rounded-bl-[2px]"
+            }`}
+          >
+            {msg.content}
+          </div>
+          <div
+            className={`mt-1 font-mono text-[9px] text-muted-foreground ${
+              isUser ? "text-right" : "text-left"
+            }`}
+          >
+            {formatTime(msg.createdAt)}
+          </div>
         </div>
       </div>
+      {parsedCard}
     </div>
   );
 }

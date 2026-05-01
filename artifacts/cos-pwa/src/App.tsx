@@ -178,7 +178,16 @@ function Router() {
 
 function App() {
   useEffect(() => {
-    document.documentElement.classList.add("dark");
+    const applyTheme = () => {
+      if (window.innerWidth >= 768) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+    };
+    applyTheme();
+    window.addEventListener("resize", applyTheme);
+    return () => window.removeEventListener("resize", applyTheme);
   }, []);
 
   return (

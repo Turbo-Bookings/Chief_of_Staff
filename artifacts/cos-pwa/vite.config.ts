@@ -38,10 +38,10 @@ export default defineConfig({
       injectRegister: "auto",
       base: basePath,
       manifest: {
-        name: "Takeovers Chief of Staff",
-        short_name: "Takeovers CoS",
+        name: "Takeovers CoS",
+        short_name: "CoS",
         description: "Personal AI Chief of Staff — voice and text capture, daily briefings, team management",
-        theme_color: "#0E0E0E",
+        theme_color: "#DC2A2A",
         background_color: "#0E0E0E",
         display: "standalone",
         orientation: "portrait",
