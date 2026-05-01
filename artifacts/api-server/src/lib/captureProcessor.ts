@@ -16,6 +16,10 @@ const openaiClient = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
+const WHISPER_PROMPT =
+  "Selmen Hassen, CEO, Takeovers Rentals. Team: Oscar, Nick, Josh, Orlando, Joan, Kathy, Karina, Tahir, Richard, Brandon. " +
+  "Business terms: Fareharbor, ATV, UTV, sunflower field, Miami, Dallas, Houston. Properties, rentals, leases, maintenance.";
+
 const SYSTEM_PROMPT = `You are the parsing layer of Selmen's Chief of Staff agent. Your job is to take
 a captured input and return structured JSON describing what it is and what
 action should be taken.
@@ -36,7 +40,7 @@ Return ONLY a JSON object with this shape:
   "clarification_question": null | "question to ask Selmen if unclear"
 }`;
 
-interface ClauseParse {
+interface ClaudeParse {
   type: "task" | "reminder" | "decision" | "context" | "question" | "draft_request" | "project";
   title: string;
   description: string;
@@ -48,7 +52,7 @@ interface ClauseParse {
   clarification_question: string | null;
 }
 
-async function getOrCreatePrincipalThread() {
+export async function getOrCreatePrincipalThread() {
   const [existing] = await db
     .select()
     .from(threadsTable)
@@ -81,38 +85,60 @@ export async function processCaptureJob(jobId: string): Promise<void> {
     throw new Error(`Capture job ${jobId} not found`);
   }
 
-  let transcript = job.rawText ?? "";
-  let contentType: "text" | "voice" = job.audioObjectPath ? "voice" : "text";
-  let transcriptionConfidence: number | null = null;
+  const messageId = job.messageId;
+  if (!messageId) {
+    throw new Error(`Capture job ${jobId} has no associated messageId`);
+  }
 
-  if (job.audioObjectPath && !transcript) {
-    logger.info({ jobId, audioObjectPath: job.audioObjectPath }, "Transcribing audio via Whisper");
-    const objectPath = job.audioObjectPath.replace(/^\/objects\//, "");
+  const [message] = await db
+    .select()
+    .from(messagesTable)
+    .where(eq(messagesTable.id, messageId));
+
+  if (!message) {
+    throw new Error(`Message ${messageId} not found`);
+  }
+
+  let transcript = message.content;
+  let transcriptionConfidence: string | null = null;
+
+  if (message.contentType === "voice" && message.contentUrl) {
+    logger.info({ jobId, messageId, contentUrl: message.contentUrl }, "Transcribing audio via Whisper");
+    const objectPath = message.contentUrl.replace(/^\/objects\//, "");
     const privateDir = process.env.PRIVATE_OBJECT_DIR ?? "/tmp/objects";
     const filePath = path.join(privateDir, objectPath);
 
     if (fs.existsSync(filePath)) {
-      const fileStream = fs.createReadStream(filePath);
-      const transcription = await openaiClient.audio.transcriptions.create({
-        file: fileStream as unknown as File,
-        model: "whisper-1",
-        response_format: "verbose_json",
-      });
-      transcript = transcription.text;
-      transcriptionConfidence = (transcription as unknown as { avg_logprob?: number }).avg_logprob
-        ? Math.min(1, Math.max(0, ((transcription as unknown as { avg_logprob: number }).avg_logprob + 2) / 2))
-        : null;
-      logger.info({ jobId, transcriptLength: transcript.length }, "Transcription complete");
+      try {
+        const fileStream = fs.createReadStream(filePath);
+        const transcription = await openaiClient.audio.transcriptions.create({
+          file: fileStream as unknown as File,
+          model: "whisper-1",
+          prompt: WHISPER_PROMPT,
+          response_format: "verbose_json",
+        });
+        transcript = transcription.text;
+        const avgLogprob = (transcription as unknown as { avg_logprob?: number }).avg_logprob;
+        if (typeof avgLogprob === "number") {
+          transcriptionConfidence = Math.min(1, Math.max(0, (avgLogprob + 2) / 2)).toFixed(3);
+        }
+        logger.info({ jobId, messageId, transcriptLength: transcript.length }, "Transcription complete");
+      } catch (err) {
+        logger.error({ err, jobId, messageId }, "Whisper transcription failed — using fallback");
+        transcript = "[transcription failed — tap to retry]";
+        transcriptionConfidence = "0.000";
+      }
     } else {
-      logger.warn({ jobId, filePath }, "Audio file not found, skipping transcription");
+      logger.warn({ jobId, messageId, filePath }, "Audio file not found");
       transcript = "[Audio file not accessible]";
+      transcriptionConfidence = "0.000";
     }
-  }
 
-  await db
-    .update(captureJobsTable)
-    .set({ transcript })
-    .where(eq(captureJobsTable.jobId, jobId));
+    await db
+      .update(messagesTable)
+      .set({ content: transcript, transcriptionConfidence })
+      .where(eq(messagesTable.id, messageId));
+  }
 
   const response = await anthropicClient.messages.create({
     model: "claude-sonnet-4-6",
@@ -126,22 +152,24 @@ export async function processCaptureJob(jobId: string): Promise<void> {
     throw new Error("Unexpected response type from Claude");
   }
 
-  let parsed: ClauseParse;
+  let parsed: ClaudeParse;
 
   try {
     const jsonMatch = contentBlock.text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON found in response");
-    parsed = JSON.parse(jsonMatch[0]) as ClauseParse;
+    if (!jsonMatch) throw new Error("No JSON found in Claude response");
+    parsed = JSON.parse(jsonMatch[0]) as ClaudeParse;
   } catch (err) {
     logger.error({ err, rawResponse: contentBlock.text }, "Failed to parse Claude response");
     throw new Error("Failed to parse AI response");
   }
 
+  await db
+    .update(messagesTable)
+    .set({ claudeParse: parsed as unknown as Record<string, unknown> })
+    .where(eq(messagesTable.id, messageId));
+
   const priorityMap: Record<string, "urgent" | "high" | "normal" | "low"> = {
-    urgent: "urgent",
-    high: "high",
-    normal: "normal",
-    low: "low",
+    urgent: "urgent", high: "high", normal: "normal", low: "low",
   };
 
   if (parsed.type === "task" || parsed.type === "reminder") {
@@ -153,29 +181,12 @@ export async function processCaptureJob(jobId: string): Promise<void> {
       proposedOwnerHint: parsed.proposed_owner_hint ?? null,
       proposedDueAt: parsed.proposed_due ? new Date(parsed.proposed_due) : null,
       tags: parsed.tags ?? [],
-      sourceJobId: jobId,
+      originMessageId: messageId,
     });
-    logger.info({ jobId, taskTitle: parsed.title }, "Task created from capture");
+    logger.info({ jobId, messageId, taskTitle: parsed.title }, "Task created from capture");
   }
 
   const principalThread = await getOrCreatePrincipalThread();
-
-  const [userMessage] = await db
-    .insert(messagesTable)
-    .values({
-      threadId: principalThread.id,
-      role: "user",
-      content: transcript,
-      audioObjectPath: job.audioObjectPath ?? null,
-      direction: "inbound",
-      senderType: "principal",
-      contentType,
-      contentUrl: job.audioObjectPath ?? null,
-      transcriptionConfidence: transcriptionConfidence?.toString() ?? null,
-      claudeParse: parsed as unknown as Record<string, unknown>,
-    })
-    .returning();
-
   const agentReply = buildAgentReply(parsed);
 
   await db.insert(messagesTable).values({
@@ -189,25 +200,18 @@ export async function processCaptureJob(jobId: string): Promise<void> {
 
   await db
     .update(threadsTable)
-    .set({
-      lastMessageAt: new Date(),
-      messageCount: principalThread.messageCount + 2,
-    })
+    .set({ lastMessageAt: new Date(), messageCount: principalThread.messageCount + 1 })
     .where(eq(threadsTable.id, principalThread.id));
 
   await db
     .update(captureJobsTable)
-    .set({
-      status: "done",
-      transcript,
-      parsedEntities: parsed as unknown as Record<string, unknown>,
-    })
+    .set({ status: "done", transcript, parsedEntities: parsed as unknown as Record<string, unknown> })
     .where(eq(captureJobsTable.jobId, jobId));
 
-  logger.info({ jobId, type: parsed.type }, "Capture job complete");
+  logger.info({ jobId, messageId, type: parsed.type }, "Capture job complete");
 }
 
-function buildAgentReply(parsed: ClauseParse): string {
+function buildAgentReply(parsed: ClaudeParse): string {
   const parts: string[] = [];
 
   if (parsed.type === "task" || parsed.type === "reminder") {
@@ -226,9 +230,7 @@ function buildAgentReply(parsed: ClauseParse): string {
     parts.push(`Context captured: **${parsed.title}**`);
   } else if (parsed.type === "question") {
     parts.push(`Question logged: **${parsed.title}**`);
-    if (parsed.clarification_question) {
-      parts.push(parsed.clarification_question);
-    }
+    if (parsed.clarification_question) parts.push(parsed.clarification_question);
   } else {
     parts.push(`Captured: **${parsed.title ?? "Note"}**`);
   }

@@ -9,6 +9,7 @@ import {
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
+import healthRouter from "./routes/health";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -48,17 +49,17 @@ app.use(
   })),
 );
 
-const PUBLIC_PATHS = [
-  "/health",
-  "/healthz",
-  "/twilio/incoming",
-  "/twilio/voice",
+app.use(healthRouter);
+
+const API_PUBLIC_PATHS = [
   "/webhooks/twilio/sms-inbound",
   "/webhooks/twilio/sms-status",
+  "/twilio/incoming",
+  "/twilio/voice",
 ];
 
 app.use("/api", (req: Request, res: Response, next: NextFunction) => {
-  if (PUBLIC_PATHS.some((p) => req.path === p || req.path.startsWith(p + "/"))) {
+  if (API_PUBLIC_PATHS.some((p) => req.path === p || req.path.startsWith(p + "/"))) {
     return next();
   }
   return requireAuth()(req, res, next);

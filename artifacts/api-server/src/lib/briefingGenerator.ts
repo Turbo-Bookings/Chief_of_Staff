@@ -1,4 +1,4 @@
-import { db, briefingsTable, tasksTable } from "@workspace/db";
+import { db, briefingsTable, tasksTable, messagesTable, threadsTable } from "@workspace/db";
 import { eq, sql, count } from "drizzle-orm";
 import { logger } from "./logger";
 import Anthropic from "@anthropic-ai/sdk";
@@ -8,19 +8,32 @@ const anthropicClient = new Anthropic({
   baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
 });
 
+async function getPrincipalThread() {
+  const [thread] = await db
+    .select()
+    .from(threadsTable)
+    .where(eq(threadsTable.threadType, "principal_talk"))
+    .limit(1);
+  return thread ?? null;
+}
+
 export async function generateBriefingForDate(
   dateStr: string,
 ): Promise<typeof briefingsTable.$inferSelect> {
   const openTasksResult = await db
     .select({ count: count() })
     .from(tasksTable)
-    .where(sql`${tasksTable.status} != 'done' AND ${tasksTable.deletedAt} IS NULL`);
+    .where(
+      sql`${tasksTable.status} NOT IN ('complete', 'cancelled', 'done') AND ${tasksTable.deletedAt} IS NULL`,
+    );
   const openTasksCount = openTasksResult[0]?.count ?? 0;
 
   const openTasks = await db
     .select()
     .from(tasksTable)
-    .where(sql`${tasksTable.status} != 'done' AND ${tasksTable.deletedAt} IS NULL`)
+    .where(
+      sql`${tasksTable.status} NOT IN ('complete', 'cancelled', 'done') AND ${tasksTable.deletedAt} IS NULL`,
+    )
     .limit(20);
 
   const tasksText =
@@ -28,7 +41,7 @@ export async function generateBriefingForDate(
       ? openTasks
           .map(
             (t) =>
-              `- [${t.status}${t.priority ? ` / ${t.priority}` : ""}] ${t.title}${t.description ? `: ${t.description}` : ""}`,
+              `- [${t.priority ?? "normal"} / ${t.status}] ${t.title}${t.description ? `: ${t.description}` : ""}${t.dueAt ? ` (due ${t.dueAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })})` : ""}`,
           )
           .join("\n")
       : "No open tasks.";
@@ -52,39 +65,57 @@ Keep it focused and actionable. Use markdown formatting.`;
   });
 
   const contentBlock = response.content[0];
-  if (contentBlock.type !== "text") {
+  if (!contentBlock || contentBlock.type !== "text") {
     throw new Error("Unexpected response from Claude");
   }
+
+  const markdown = contentBlock.text;
 
   const [existing] = await db
     .select()
     .from(briefingsTable)
     .where(eq(briefingsTable.date, dateStr));
 
+  let briefing: typeof briefingsTable.$inferSelect;
+
   if (existing) {
     const [updated] = await db
       .update(briefingsTable)
       .set({
-        markdown: contentBlock.text,
+        markdown,
         openTasksCount: Number(openTasksCount),
         escalationCount: 0,
         generatedAt: new Date(),
       })
       .where(eq(briefingsTable.date, dateStr))
       .returning();
-    return updated!;
+    briefing = updated!;
+  } else {
+    const [created] = await db
+      .insert(briefingsTable)
+      .values({
+        date: dateStr,
+        markdown,
+        openTasksCount: Number(openTasksCount),
+        escalationCount: 0,
+      })
+      .returning();
+    briefing = created!;
   }
 
-  const [created] = await db
-    .insert(briefingsTable)
-    .values({
-      date: dateStr,
-      markdown: contentBlock.text,
-      openTasksCount: Number(openTasksCount),
-      escalationCount: 0,
-    })
-    .returning();
+  const principalThread = await getPrincipalThread();
+  if (principalThread) {
+    await db.insert(messagesTable).values({
+      threadId: principalThread.id,
+      role: "assistant",
+      content: markdown,
+      direction: "outbound",
+      senderType: "agent",
+      contentType: "system",
+    });
+    logger.info({ date: dateStr, threadId: principalThread.id }, "Briefing stored as system message in principal thread");
+  }
 
   logger.info({ date: dateStr }, "Generated briefing");
-  return created!;
+  return briefing;
 }

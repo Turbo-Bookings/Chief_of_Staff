@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, threadsTable, messagesTable } from "@workspace/db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, lt, and } from "drizzle-orm";
 import { GetThreadMessagesParams, GetThreadMessagesQueryParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -112,7 +112,10 @@ router.get("/threads/:id/messages", async (req, res): Promise<void> => {
   const before = queryParams.data.before;
 
   const conditions = before != null
-    ? and(eq(messagesTable.threadId, params.data.id))
+    ? and(
+        eq(messagesTable.threadId, params.data.id),
+        lt(messagesTable.id, before),
+      )
     : eq(messagesTable.threadId, params.data.id);
 
   const messages = await db

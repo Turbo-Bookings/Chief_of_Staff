@@ -1,10 +1,11 @@
-import { pgTable, serial, text, real, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, real, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const captureJobsTable = pgTable("capture_jobs", {
   id: serial("id").primaryKey(),
   jobId: text("job_id").notNull().unique(),
+  messageId: integer("message_id"),
   status: text("status", { enum: ["queued", "processing", "done", "failed"] }).notNull().default("queued"),
   audioObjectPath: text("audio_object_path"),
   rawText: text("raw_text"),

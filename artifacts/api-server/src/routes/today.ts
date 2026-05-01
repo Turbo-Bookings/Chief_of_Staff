@@ -1,54 +1,71 @@
 import { Router, type IRouter } from "express";
-import { db, briefingsTable, tasksTable, messagesTable, threadsTable } from "@workspace/db";
-import { eq, desc, isNull, and, sql } from "drizzle-orm";
-import { generateBriefingForDate } from "../lib/briefingGenerator";
+import { db, tasksTable, messagesTable, threadsTable } from "@workspace/db";
+import { eq, desc, isNull, and, notInArray, asc, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
-router.get("/today/brief", async (req, res): Promise<void> => {
-  const today = new Date().toISOString().split("T")[0]!;
+const PRIORITY_ORDER: Record<string, number> = {
+  urgent: 0,
+  high: 1,
+  normal: 2,
+  low: 3,
+};
 
-  const [existing] = await db
+router.get("/today/brief", async (_req, res): Promise<void> => {
+  const [principalThread] = await db
     .select()
-    .from(briefingsTable)
-    .where(eq(briefingsTable.date, today));
+    .from(threadsTable)
+    .where(eq(threadsTable.threadType, "principal_talk"))
+    .limit(1);
 
-  if (existing) {
+  if (!principalThread) {
     res.json({
-      id: existing.id,
-      date: existing.date,
-      markdown: existing.markdown,
-      generatedAt: existing.generatedAt.toISOString(),
-      openTasksCount: existing.openTasksCount ?? null,
-      escalationCount: existing.escalationCount ?? null,
+      id: null,
+      date: new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }),
+      markdown: "Good morning, Selmen. No briefing has been generated yet. Your first brief will appear here at 7 AM.",
+      generatedAt: null,
+      openTasksCount: null,
+      escalationCount: null,
     });
     return;
   }
 
-  try {
-    const briefing = await generateBriefingForDate(today);
+  const [briefMessage] = await db
+    .select()
+    .from(messagesTable)
+    .where(
+      and(
+        eq(messagesTable.threadId, principalThread.id),
+        eq(messagesTable.senderType, "agent"),
+        eq(messagesTable.contentType, "system"),
+      ),
+    )
+    .orderBy(desc(messagesTable.createdAt))
+    .limit(1);
+
+  if (!briefMessage) {
     res.json({
-      id: briefing.id,
-      date: briefing.date,
-      markdown: briefing.markdown,
-      generatedAt: briefing.generatedAt.toISOString(),
-      openTasksCount: briefing.openTasksCount ?? null,
-      escalationCount: briefing.escalationCount ?? null,
+      id: null,
+      date: new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }),
+      markdown: "Good morning, Selmen. No briefing has been generated yet. Your first brief will appear here at 7 AM.",
+      generatedAt: null,
+      openTasksCount: null,
+      escalationCount: null,
     });
-  } catch (err) {
-    req.log.error({ err }, "Failed to generate today brief");
-    res.status(500).json({ error: "Failed to generate brief" });
+    return;
   }
+
+  res.json({
+    id: briefMessage.id,
+    date: briefMessage.createdAt.toLocaleDateString("en-CA", { timeZone: "America/New_York" }),
+    markdown: briefMessage.content,
+    generatedAt: briefMessage.createdAt.toISOString(),
+    openTasksCount: null,
+    escalationCount: null,
+  });
 });
 
-router.get("/today/tasks", async (req, res): Promise<void> => {
-  const statusFilter = req.query.status as string | undefined;
-
-  const allowedStatuses = [
-    "open", "in_progress", "done", "blocked",
-    "captured", "dispatched", "acknowledged", "complete", "cancelled",
-  ];
-
+router.get("/today/tasks", async (_req, res): Promise<void> => {
   const tasks = await db
     .select()
     .from(tasksTable)
@@ -56,12 +73,20 @@ router.get("/today/tasks", async (req, res): Promise<void> => {
       and(
         isNull(tasksTable.deletedAt),
         isNull(tasksTable.ownerId),
-        statusFilter && allowedStatuses.includes(statusFilter)
-          ? sql`${tasksTable.status} = ${statusFilter}`
-          : sql`${tasksTable.status} IN ('captured', 'open', 'dispatched', 'acknowledged', 'in_progress', 'blocked')`,
+        notInArray(tasksTable.status, ["complete", "cancelled", "done"]),
       ),
     )
-    .orderBy(desc(tasksTable.createdAt))
+    .orderBy(
+      sql`CASE
+        WHEN ${tasksTable.priority} = 'urgent' THEN 0
+        WHEN ${tasksTable.priority} = 'high' THEN 1
+        WHEN ${tasksTable.priority} = 'normal' THEN 2
+        WHEN ${tasksTable.priority} = 'low' THEN 3
+        ELSE 4
+      END`,
+      asc(tasksTable.dueAt),
+      asc(tasksTable.createdAt),
+    )
     .limit(100);
 
   res.json(
@@ -74,7 +99,6 @@ router.get("/today/tasks", async (req, res): Promise<void> => {
       assigneeId: t.assigneeId ?? null,
       assigneeName: null,
       ownerId: t.ownerId ?? null,
-      dueDate: t.dueDate ?? null,
       dueAt: t.dueAt?.toISOString() ?? null,
       authorityTier: t.authorityTier ?? null,
       tags: (t.tags as string[]) ?? [],
@@ -104,7 +128,7 @@ router.get("/today/recent-captures", async (req, res): Promise<void> => {
     .where(
       and(
         eq(messagesTable.threadId, principalThread.id),
-        eq(messagesTable.role, "user"),
+        eq(messagesTable.direction, "inbound"),
       ),
     )
     .orderBy(desc(messagesTable.createdAt))
