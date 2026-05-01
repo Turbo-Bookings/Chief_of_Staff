@@ -114,6 +114,9 @@ function VoiceMessageRow({ msg }: { msg: Message }) {
 
   const hasAudio = !!msg.audioObjectPath;
   const transcript = msg.content || undefined;
+  const audioSrc = msg.audioObjectPath
+    ? `${window.location.origin}/api/storage/objects/${msg.audioObjectPath}`
+    : undefined;
 
   return (
     <div className="flex items-start gap-2 max-w-[80%] ml-auto">
@@ -145,10 +148,10 @@ function VoiceMessageRow({ msg }: { msg: Message }) {
             &ldquo;{transcript}&rdquo;
           </p>
         )}
-        {hasAudio && (
+        {hasAudio && audioSrc && (
           <audio
             ref={audioRef}
-            src={`/api/storage/objects/${msg.audioObjectPath}`}
+            src={audioSrc}
             onEnded={() => setPlaying(false)}
             preload="none"
           />
