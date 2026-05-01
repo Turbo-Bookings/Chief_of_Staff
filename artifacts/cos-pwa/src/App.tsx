@@ -202,7 +202,7 @@ function Router() {
 function App() {
   useEffect(() => {
     const applyTheme = () => {
-      if (window.innerWidth >= 768) {
+      if (window.innerWidth >= 640) {
         document.documentElement.classList.add("dark");
       } else {
         document.documentElement.classList.remove("dark");

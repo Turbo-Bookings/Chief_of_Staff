@@ -62,7 +62,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        navigateFallback: null,
+        navigateFallback: `${basePath}index.html`,
+        navigateFallbackDenylist: [/^\/api\//, /^\/cdn-cgi\//],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
