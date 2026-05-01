@@ -39,13 +39,26 @@ pnpm workspace monorepo using TypeScript. Built for Selmen Hassen (CEO, Takeover
 
 ## App Navigation (7 tabs)
 
-- `/app/talk` — Voice/text capture (functional: Whisper + Claude)
-- `/app/today` — AI daily briefing + task list (functional: Claude)
-- `/app/approvals` — Placeholder ("Nothing pending")
-- `/app/inbox` — Placeholder ("Email integration coming in Phase 3")
-- `/app/team` — Team roster (functional: read-only)
-- `/app/projects` — Placeholder
-- `/app/insights` — Placeholder
+All routes are relative to the `/cos-pwa` base path.
+
+- `/talk` — Voice/text capture (functional: MediaRecorder + useSubmitVoiceCapture + useSubmitCapture)
+- `/today` — AI daily briefing + stats (functional: useGetTodayBriefing)
+- `/approvals` — Placeholder (Phase 2 feature)
+- `/inbox` — Placeholder (Phase 2 feature)
+- `/team` — Team card grid (functional: useListTeamMembers, name-hash avatar colors)
+- `/projects` — Placeholder (Phase 3 feature)
+- `/insights` — Placeholder (Phase 3 feature)
+
+### Frontend PWA Key Files (artifacts/cos-pwa/src)
+- `App.tsx` — Clerk + Wouter router, all 7 routes
+- `components/AppShell.tsx` — Sidebar + mobile bottom bar (3 sections: Command, Operations, Intelligence)
+- `pages/talk.tsx` — Chat thread, text + voice capture (VoiceStatusBanner polls useGetVoiceCaptureStatus)
+- `pages/today.tsx` — Daily briefing with stat cards + markdown
+- `pages/team.tsx` — Card grid, avatar color from name hash
+- `pages/approvals.tsx` — Placeholder
+- `pages/inbox.tsx` — Placeholder
+- `pages/projects.tsx` — Placeholder
+- `pages/insights.tsx` — Placeholder
 
 ## API Routes (Phase 1)
 
@@ -131,7 +144,7 @@ Phase 1 does NOT dispatch to team members (that's Phase 2). `proposed_owner_hint
 ## Principal Seed Data
 
 - **Name**: Selmen Hassen
-- **Email**: `sel@takeoversrentals.com`
+- **Email**: `selmen@takeoversrentals.com` (must match Clerk account email exactly for principal binding)
 - **Briefing times**: 07:00 (morning), 18:00 (evening)
 - **Timezone**: America/New_York
 

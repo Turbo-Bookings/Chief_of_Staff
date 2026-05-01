@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Send, Mic, MicOff, Loader2, RefreshCw } from "lucide-react";
@@ -8,8 +8,11 @@ import {
   useGetThreadMessages,
   getGetThreadMessagesQueryKey,
   useSubmitCapture,
+  useSubmitVoiceCapture,
   useGetCaptureJobStatus,
   getGetCaptureJobStatusQueryKey,
+  useGetVoiceCaptureStatus,
+  getGetVoiceCaptureStatusQueryKey,
 } from "@workspace/api-client-react";
 
 function formatTime(iso: string) {
@@ -26,31 +29,30 @@ function formatDate(iso: string) {
 
 function MessageBubble({ msg }: { msg: { role: string; content: string; createdAt: string } }) {
   const isUser = msg.role === "user";
-  const isAssistant = msg.role === "assistant";
 
   return (
     <div
       data-testid={`message-${msg.role}`}
-      className={`flex ${isUser ? "justify-end" : "justify-start"} mb-3`}
+      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
     >
       {!isUser && (
         <div className="w-7 h-7 rounded-full bg-[rgba(220,42,42,0.15)] border border-[#DC2A2A]/20 flex items-center justify-center mr-2 mt-1 shrink-0">
           <span className="font-mono text-[9px] text-[#DC2A2A] font-bold">AI</span>
         </div>
       )}
-      <div
-        className={`max-w-[78%] rounded-xl px-4 py-2.5 ${
-          isUser
-            ? "bg-[#DC2A2A] text-white"
-            : isAssistant
-            ? "bg-card border border-border text-foreground"
-            : "bg-card border border-border/50 text-muted-foreground text-xs italic"
-        }`}
-      >
-        <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+      <div className="max-w-[80%]">
         <div
-          className={`mt-1 text-[10px] font-mono ${
-            isUser ? "text-white/60" : "text-muted-foreground"
+          className={`rounded-[10px] px-3.5 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap ${
+            isUser
+              ? "bg-[#DC2A2A] text-white rounded-br-[2px]"
+              : "bg-accent border border-border text-foreground rounded-bl-[2px]"
+          }`}
+        >
+          {msg.content}
+        </div>
+        <div
+          className={`mt-1 font-mono text-[9px] text-muted-foreground ${
+            isUser ? "text-right" : "text-left"
           }`}
         >
           {formatTime(msg.createdAt)}
@@ -79,29 +81,49 @@ function JobStatusBanner({ jobId, onDone }: { jobId: string; onDone: () => void 
 
   if (!job || job.status === "done") return null;
 
-  const isDone = job.status === "failed";
-
   return (
     <div
-      className={`flex items-center gap-2 px-4 py-2.5 border-b border-border text-sm font-mono ${
-        isDone ? "text-destructive bg-destructive/10" : "text-muted-foreground"
+      className={`flex items-center gap-2 px-5 py-2.5 border-b border-border font-mono text-[11px] ${
+        job.status === "failed" ? "text-[#DC2A2A] bg-[rgba(220,42,42,0.06)]" : "text-muted-foreground"
       }`}
     >
-      {isDone ? (
-        <>
-          <span className="text-[#DC2A2A]">Processing failed.</span>
-          {job.error && <span className="text-muted-foreground">{job.error}</span>}
-        </>
+      {job.status === "failed" ? (
+        <span>Processing failed.</span>
       ) : (
         <>
-          <Loader2 size={14} className="animate-spin text-[#DC2A2A]" />
-          {job.status === "queued" ? "Queued..." : "AI is processing your message..."}
-          {job.transcript && (
-            <span className="text-foreground/70 truncate max-w-[260px]">
-              &ldquo;{job.transcript}&rdquo;
-            </span>
-          )}
+          <Loader2 size={12} className="animate-spin text-[#DC2A2A]" />
+          {job.status === "queued" ? "Queued..." : "AI is processing..."}
         </>
+      )}
+    </div>
+  );
+}
+
+function VoiceStatusBanner({ voiceId, onDone }: { voiceId: number; onDone: () => void }) {
+  const { data: voice } = useGetVoiceCaptureStatus(voiceId, {
+    query: {
+      queryKey: getGetVoiceCaptureStatusQueryKey(voiceId),
+      refetchInterval: (q) => {
+        const status = (q.state.data as { status?: string } | undefined)?.status;
+        return status === "done" ? false : 2000;
+      },
+    },
+  });
+
+  useEffect(() => {
+    if (voice?.status === "done") {
+      onDone();
+    }
+  }, [voice?.status, onDone]);
+
+  if (!voice || voice.status === "done") return null;
+
+  return (
+    <div className="flex items-center gap-2 px-5 py-2.5 border-b border-border font-mono text-[11px] text-muted-foreground">
+      <Loader2 size={12} className="animate-spin text-[#DC2A2A]" />
+      {voice.status === "transcribing" ? "Transcribing voice..." : "Parsing..."}
+      {voice.transcript && (
+        <span className="text-foreground/70 truncate max-w-[200px]">&ldquo;{voice.transcript}&rdquo;</span>
       )}
     </div>
   );
@@ -112,6 +134,7 @@ export default function TalkPage() {
   const [text, setText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [pendingJobId, setPendingJobId] = useState<string | null>(null);
+  const [pendingVoiceId, setPendingVoiceId] = useState<number | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -137,14 +160,17 @@ export default function TalkPage() {
   const messages = Array.isArray(messagesData) ? messagesData : [];
 
   const { mutateAsync: submitCapture, isPending: isSubmitting } = useSubmitCapture();
+  const { mutateAsync: submitVoiceCapture, isPending: isSubmittingVoice } = useSubmitVoiceCapture();
+
+  const isPending = isSubmitting || isSubmittingVoice || !!pendingJobId || !!pendingVoiceId;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, pendingJobId]);
+  }, [messages.length, pendingJobId, pendingVoiceId]);
 
   const handleSendText = async () => {
     const content = text.trim();
-    if (!content || isSubmitting) return;
+    if (!content || isPending) return;
     setText("");
     try {
       const result = await submitCapture({ data: { text: content } });
@@ -161,33 +187,41 @@ export default function TalkPage() {
     }
   };
 
-  const handleJobDone = () => {
+  const handleJobDone = useCallback(() => {
     setPendingJobId(null);
     refetchMessages();
     queryClient.invalidateQueries({ queryKey: getListThreadsQueryKey() });
-  };
+  }, [refetchMessages, queryClient]);
+
+  const handleVoiceDone = useCallback(() => {
+    setPendingVoiceId(null);
+    refetchMessages();
+    queryClient.invalidateQueries({ queryKey: getListThreadsQueryKey() });
+  }, [refetchMessages, queryClient]);
 
   const startRecording = async () => {
+    if (isPending) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       chunksRef.current = [];
-      const mr = new MediaRecorder(stream);
-      mr.ondataavailable = (e) => chunksRef.current.push(e.data);
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm";
+      const mr = new MediaRecorder(stream, { mimeType });
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
       mr.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        const formData = new FormData();
-        formData.append("audio", blob, "memo.webm");
+        const blob = new Blob(chunksRef.current, { type: mimeType });
         try {
-          const result = await submitCapture({
-            data: { text: "[Voice memo]" },
-          });
-          setPendingJobId(result.jobId);
+          const result = await submitVoiceCapture({ data: { audio: blob } });
+          setPendingVoiceId(result.messageId);
         } catch {
           toast.error("Failed to submit voice memo.");
         }
       };
-      mr.start();
+      mr.start(100);
       mediaRecorderRef.current = mr;
       setIsRecording(true);
     } catch {
@@ -210,13 +244,13 @@ export default function TalkPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Page header */}
-      <div className="flex items-center justify-between px-6 md:px-8 py-4 border-b border-border bg-background/60 backdrop-blur-sm sticky top-0 z-10">
+      <div className="flex items-center justify-between px-6 md:px-8 py-4 border-b border-border bg-background/60 backdrop-blur-sm sticky top-0 z-10 shrink-0">
         <div>
           <div className="font-mono text-[10px] text-[#DC2A2A] uppercase tracking-[0.12em] font-semibold mb-0.5">
             &#8212; Talk
           </div>
           <h1 className="font-display text-3xl font-bold tracking-tight text-foreground">
-            What&apos;s on your <em className="text-[#DC2A2A]">mind?</em>
+            What&apos;s on your <em className="italic text-[#DC2A2A]">mind?</em>
           </h1>
         </div>
         <button
@@ -229,15 +263,18 @@ export default function TalkPage() {
         </button>
       </div>
 
-      {/* Job status banner */}
+      {/* Status banners */}
       {pendingJobId && (
         <JobStatusBanner jobId={pendingJobId} onDone={handleJobDone} />
       )}
+      {pendingVoiceId && (
+        <VoiceStatusBanner voiceId={pendingVoiceId} onDone={handleVoiceDone} />
+      )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-4 md:px-8 py-4">
-        {messages.length === 0 && !pendingJobId ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-20">
+      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-5 flex flex-col gap-[18px]">
+        {messages.length === 0 && !isPending ? (
+          <div className="flex flex-col items-center justify-center h-full text-center py-16">
             <div className="w-12 h-12 rounded-full bg-[rgba(220,42,42,0.12)] flex items-center justify-center mb-4">
               <Mic size={22} className="text-[#DC2A2A]" />
             </div>
@@ -245,14 +282,14 @@ export default function TalkPage() {
               Ready to capture
             </div>
             <div className="text-sm text-muted-foreground max-w-sm">
-              Type a thought, task, or idea below. Voice memo support coming soon.
+              Type a thought, task, or idea below — or tap the mic to record a voice memo.
             </div>
           </div>
         ) : (
           <>
             {Object.entries(grouped).map(([day, msgs]) => (
-              <div key={day}>
-                <div className="flex items-center gap-3 my-4">
+              <div key={day} className="flex flex-col gap-[18px]">
+                <div className="flex items-center gap-3 my-1">
                   <div className="flex-1 h-px bg-border" />
                   <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
                     {day}
@@ -264,8 +301,8 @@ export default function TalkPage() {
                 ))}
               </div>
             ))}
-            {isSubmitting && (
-              <div className="flex justify-center mt-2">
+            {(isSubmitting || isSubmittingVoice) && (
+              <div className="flex justify-center">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
                   <Loader2 size={12} className="animate-spin" />
                   Sending...
@@ -278,59 +315,60 @@ export default function TalkPage() {
       </div>
 
       {/* Compose area */}
-      <div className="shrink-0 border-t border-border bg-card px-4 md:px-8 py-4">
-        <div className="flex items-end gap-3 max-w-3xl mx-auto">
-          <div className="flex-1 relative">
-            <textarea
-              data-testid="input-message"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Capture a thought, task, or note..."
-              rows={1}
-              className="w-full bg-background border border-border rounded-[10px] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-[#DC2A2A]/40 focus:border-[#DC2A2A]/60 transition-colors"
-              style={{ minHeight: "44px", maxHeight: "140px" }}
-              onInput={(e) => {
-                const t = e.currentTarget;
-                t.style.height = "auto";
-                t.style.height = `${Math.min(t.scrollHeight, 140)}px`;
-              }}
-              disabled={isSubmitting || !!pendingJobId}
-            />
-          </div>
+      <div className="shrink-0 border-t border-border bg-card px-4 md:px-6 py-4">
+        <div className="flex items-center gap-3 bg-accent border border-border rounded-[30px] px-4 py-1.5 max-w-4xl mx-auto">
+          <textarea
+            data-testid="input-message"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Capture a thought, task, or note..."
+            rows={1}
+            className="flex-1 bg-transparent border-0 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none py-2"
+            style={{ minHeight: "36px", maxHeight: "120px" }}
+            onInput={(e) => {
+              const t = e.currentTarget;
+              t.style.height = "auto";
+              t.style.height = `${Math.min(t.scrollHeight, 120)}px`;
+            }}
+            disabled={isPending}
+          />
 
           {/* Voice button */}
           <button
-            onClick={isRecording ? stopRecording : startRecording}
+            onMouseDown={startRecording}
+            onMouseUp={stopRecording}
+            onTouchStart={startRecording}
+            onTouchEnd={stopRecording}
             data-testid="btn-voice-record"
-            disabled={isSubmitting || !!pendingJobId}
-            className={`w-11 h-11 rounded-[10px] flex items-center justify-center transition-colors shrink-0 ${
+            disabled={isSubmitting || isSubmittingVoice || !!pendingJobId || !!pendingVoiceId}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0 ${
               isRecording
-                ? "bg-[#DC2A2A] text-white animate-pulse"
-                : "bg-card border border-border text-muted-foreground hover:text-foreground"
-            } disabled:opacity-50`}
-            title={isRecording ? "Stop recording" : "Record voice memo"}
+                ? "bg-[#DC2A2A] text-white scale-110 ring-2 ring-[#DC2A2A]/30"
+                : "bg-background border border-border text-muted-foreground hover:text-foreground"
+            } disabled:opacity-40`}
+            title={isRecording ? "Release to send" : "Hold to record"}
           >
-            {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
+            {isRecording ? <MicOff size={16} /> : <Mic size={16} />}
           </button>
 
           {/* Send button */}
           <button
             onClick={handleSendText}
             data-testid="btn-send-message"
-            disabled={!text.trim() || isSubmitting || !!pendingJobId}
-            className="w-11 h-11 rounded-[10px] bg-[#DC2A2A] hover:bg-[#A8201F] text-white flex items-center justify-center transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+            disabled={!text.trim() || isPending}
+            className="w-9 h-9 rounded-full bg-[#DC2A2A] hover:bg-[#A8201F] text-white flex items-center justify-center transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isSubmitting ? (
-              <Loader2 size={18} className="animate-spin" />
+              <Loader2 size={15} className="animate-spin" />
             ) : (
-              <Send size={18} />
+              <Send size={15} />
             )}
           </button>
         </div>
         <div className="text-center mt-2">
           <span className="font-mono text-[10px] text-muted-foreground">
-            Press Enter to send, Shift+Enter for new line
+            Enter to send · Hold mic to record
           </span>
         </div>
       </div>

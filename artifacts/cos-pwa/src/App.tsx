@@ -8,11 +8,11 @@ import { Toaster } from "sonner";
 import AppShell from "@/components/AppShell";
 import TalkPage from "@/pages/talk";
 import TodayPage from "@/pages/today";
-import TasksPage from "@/pages/tasks";
-import PeoplePage from "@/pages/people";
-import EscalatePage from "@/pages/escalate";
-import ReportPage from "@/pages/report";
-import SettingsPage from "@/pages/settings";
+import ApprovalsPage from "@/pages/approvals";
+import InboxPage from "@/pages/inbox";
+import TeamPage from "@/pages/team";
+import ProjectsPage from "@/pages/projects";
+import InsightsPage from "@/pages/insights";
 import LandingPage from "@/pages/landing";
 import NotFound from "@/pages/not-found";
 
@@ -146,29 +146,29 @@ function Router() {
           <AppShell activeTab="today"><TodayPage /></AppShell>
         </ProtectedRoute>
       )} />
-      <Route path="/tasks" component={() => (
+      <Route path="/approvals" component={() => (
         <ProtectedRoute>
-          <AppShell activeTab="tasks"><TasksPage /></AppShell>
+          <AppShell activeTab="approvals"><ApprovalsPage /></AppShell>
         </ProtectedRoute>
       )} />
-      <Route path="/people" component={() => (
+      <Route path="/inbox" component={() => (
         <ProtectedRoute>
-          <AppShell activeTab="people"><PeoplePage /></AppShell>
+          <AppShell activeTab="inbox"><InboxPage /></AppShell>
         </ProtectedRoute>
       )} />
-      <Route path="/escalate" component={() => (
+      <Route path="/team" component={() => (
         <ProtectedRoute>
-          <AppShell activeTab="escalate"><EscalatePage /></AppShell>
+          <AppShell activeTab="team"><TeamPage /></AppShell>
         </ProtectedRoute>
       )} />
-      <Route path="/report" component={() => (
+      <Route path="/projects" component={() => (
         <ProtectedRoute>
-          <AppShell activeTab="report"><ReportPage /></AppShell>
+          <AppShell activeTab="projects"><ProjectsPage /></AppShell>
         </ProtectedRoute>
       )} />
-      <Route path="/settings" component={() => (
+      <Route path="/insights" component={() => (
         <ProtectedRoute>
-          <AppShell activeTab="settings"><SettingsPage /></AppShell>
+          <AppShell activeTab="insights"><InsightsPage /></AppShell>
         </ProtectedRoute>
       )} />
       <Route component={NotFound} />

@@ -1,25 +1,27 @@
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
 import {
   Mic2,
   CalendarDays,
-  CheckSquare,
+  CheckCheck,
+  Inbox,
   Users,
-  AlertTriangle,
-  FileText,
-  Settings,
+  FolderKanban,
+  BarChart3,
   LogOut,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { id: "talk", label: "Talk", href: "/talk", icon: Mic2, section: "Command" },
   { id: "today", label: "Today", href: "/today", icon: CalendarDays, section: "Command" },
-  { id: "tasks", label: "Tasks", href: "/tasks", icon: CheckSquare, section: "Operations" },
-  { id: "people", label: "People", href: "/people", icon: Users, section: "Operations" },
-  { id: "escalate", label: "Escalate", href: "/escalate", icon: AlertTriangle, section: "Reports" },
-  { id: "report", label: "Report", href: "/report", icon: FileText, section: "Reports" },
-  { id: "settings", label: "Settings", href: "/settings", icon: Settings, section: "System" },
+  { id: "approvals", label: "Approvals", href: "/approvals", icon: CheckCheck, section: "Operations", badge: "3" },
+  { id: "inbox", label: "Inbox", href: "/inbox", icon: Inbox, section: "Operations", badge: "12" },
+  { id: "team", label: "Team", href: "/team", icon: Users, section: "Operations" },
+  { id: "projects", label: "Projects", href: "/projects", icon: FolderKanban, section: "Intelligence" },
+  { id: "insights", label: "Insights", href: "/insights", icon: BarChart3, section: "Intelligence" },
 ];
+
+const MOBILE_TABS = ["talk", "today", "approvals", "inbox", "team", "projects", "insights"];
 
 interface AppShellProps {
   activeTab: string;
@@ -30,7 +32,7 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
   const { user } = useUser();
   const { signOut } = useClerk();
 
-  const sections = ["Command", "Operations", "Reports", "System"];
+  const sections = ["Command", "Operations", "Intelligence"];
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -53,7 +55,7 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-2 py-3.5 overflow-y-auto scrollbar-thin">
+        <nav className="flex-1 px-2 py-3.5 overflow-y-auto">
           {sections.map((section) => {
             const items = NAV_ITEMS.filter((n) => n.section === section);
             if (!items.length) return null;
@@ -83,7 +85,12 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
                         size={16}
                         className={`shrink-0 ${isActive ? "opacity-100" : "opacity-70"}`}
                       />
-                      {item.label}
+                      <span className="flex-1">{item.label}</span>
+                      {"badge" in item && item.badge && (
+                        <span className="bg-[#DC2A2A] text-white font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold">
+                          {item.badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
@@ -95,7 +102,7 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
         {/* Footer status */}
         <div className="px-4 py-3.5 border-t border-border">
           <div className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground mb-2.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80] pulse-dot shrink-0" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80] shrink-0 animate-pulse" />
             System Online
           </div>
           <button
@@ -122,14 +129,14 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
         </div>
 
         {/* Page content */}
-        <div className="flex-1 overflow-y-auto scrollbar-thin">
+        <div className="flex-1 overflow-y-auto">
           {children}
         </div>
 
         {/* Mobile bottom tab bar */}
         <div className="md:hidden shrink-0 bg-card border-t border-border">
           <nav className="flex items-center justify-around px-1 py-1.5">
-            {NAV_ITEMS.slice(0, 6).map((item) => {
+            {NAV_ITEMS.filter((item) => MOBILE_TABS.includes(item.id)).map((item) => {
               const isActive = activeTab === item.id;
               const Icon = item.icon;
               return (
@@ -137,27 +144,22 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
                   key={item.id}
                   href={item.href}
                   data-testid={`mobile-nav-${item.id}`}
-                  className={`flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-lg transition-colors ${
+                  className={`relative flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-colors ${
                     isActive ? "text-[#DC2A2A]" : "text-muted-foreground"
                   }`}
                 >
-                  <Icon size={20} strokeWidth={isActive ? 2 : 1.5} />
-                  <span className="text-[9px] font-mono uppercase tracking-wider">
+                  <Icon size={18} strokeWidth={isActive ? 2 : 1.5} />
+                  {"badge" in item && item.badge && (
+                    <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-[#DC2A2A] text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+                      {item.badge}
+                    </span>
+                  )}
+                  <span className="text-[8px] font-mono uppercase tracking-wider">
                     {item.label}
                   </span>
                 </Link>
               );
             })}
-            <Link
-              href="/settings"
-              data-testid="mobile-nav-settings"
-              className={`flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-lg transition-colors ${
-                activeTab === "settings" ? "text-[#DC2A2A]" : "text-muted-foreground"
-              }`}
-            >
-              <Settings size={20} strokeWidth={activeTab === "settings" ? 2 : 1.5} />
-              <span className="text-[9px] font-mono uppercase tracking-wider">Set</span>
-            </Link>
           </nav>
         </div>
       </main>
