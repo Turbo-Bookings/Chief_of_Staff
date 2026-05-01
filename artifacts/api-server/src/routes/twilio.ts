@@ -56,7 +56,12 @@ router.post("/webhooks/twilio/sms-inbound", twilioSignatureMiddleware, async (re
   logger.info({ from, bodyLength: messageBody.length }, "Twilio inbound SMS");
 
   const principalPhone = process.env.PRINCIPAL_PHONE;
-  if (principalPhone && from !== principalPhone) {
+  if (!principalPhone) {
+    logger.error("PRINCIPAL_PHONE is not configured — rejecting all inbound SMS to prevent unauthorized access");
+    res.status(403).json({ error: "Service not configured for inbound messages" });
+    return;
+  }
+  if (from !== principalPhone) {
     logger.warn({ from }, "SMS from unauthorized sender — rejecting with 403");
     res.status(403).json({ error: "Unauthorized sender" });
     return;
@@ -113,7 +118,7 @@ router.post("/webhooks/twilio/sms-status", twilioSignatureMiddleware, async (req
   res.status(204).send();
 });
 
-router.post("/twilio/incoming", twilioSignatureMiddleware, (req, res): void => {
+router.post("/webhooks/twilio/incoming", twilioSignatureMiddleware, (req, res): void => {
   const from = (req.body as Record<string, string>).From ?? "unknown";
   const body = (req.body as Record<string, string>).Body ?? "";
   logger.info({ from, body }, "Twilio incoming SMS webhook (legacy path)");
@@ -121,9 +126,9 @@ router.post("/twilio/incoming", twilioSignatureMiddleware, (req, res): void => {
   res.send(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`);
 });
 
-router.post("/twilio/voice", twilioSignatureMiddleware, (req, res): void => {
+router.post("/webhooks/twilio/voice", twilioSignatureMiddleware, (req, res): void => {
   const from = (req.body as Record<string, string>).From ?? "unknown";
-  logger.info({ from }, "Twilio voice webhook — PLACEHOLDER, not yet active");
+  logger.info({ from }, "Twilio voice webhook");
   res.setHeader("Content-Type", "text/xml");
   res.send(
     `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling Takeovers Rentals. Please leave a message after the tone.</Say></Response>`,

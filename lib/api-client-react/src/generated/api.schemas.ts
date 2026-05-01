@@ -55,16 +55,6 @@ export interface SubmitCaptureBody {
   durationSeconds?: number | null;
 }
 
-export interface SubmitVoiceCaptureBody {
-  /** Object storage path of the uploaded audio file */
-  audioObjectPath: string;
-  /**
-   * Duration of audio in seconds
-   * @nullable
-   */
-  durationSeconds?: number | null;
-}
-
 export type CaptureJobResponseStatus =
   (typeof CaptureJobResponseStatus)[keyof typeof CaptureJobResponseStatus];
 
@@ -660,6 +650,13 @@ export interface UploadUrlResponse {
   objectPath: string;
   metadata?: UploadUrlRequest;
 }
+
+export type SubmitVoiceCaptureBody = {
+  /** Audio file to transcribe (25 MB max) */
+  audio: Blob;
+  /** Optional recorded duration hint for logging */
+  durationSeconds?: number;
+};
 
 export type GetTodayTasksParams = {
   status?: GetTodayTasksStatus;

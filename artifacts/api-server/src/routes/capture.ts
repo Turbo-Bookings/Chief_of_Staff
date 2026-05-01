@@ -1,10 +1,19 @@
 import { Router, type IRouter } from "express";
+import multer from "multer";
 import { randomUUID } from "crypto";
 import { db, captureJobsTable, messagesTable, threadsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { SubmitCaptureBody, SubmitVoiceCaptureBody } from "@workspace/api-zod";
+import { SubmitCaptureBody } from "@workspace/api-zod";
 import { enqueueCapture } from "../lib/queue";
 import { getOrCreatePrincipalThread } from "../lib/captureProcessor";
+import { ObjectStorageService } from "../lib/objectStorage";
+
+const objectStorage = new ObjectStorageService();
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+});
 
 const router: IRouter = Router();
 
@@ -59,46 +68,70 @@ router.post("/capture", async (req, res): Promise<void> => {
   res.status(202).json({ messageId: message!.id, jobId, status: "queued" });
 });
 
-router.post("/capture/voice", async (req, res): Promise<void> => {
-  const parsed = SubmitVoiceCaptureBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+router.post(
+  "/capture/voice",
+  upload.single("audio"),
+  async (req, res): Promise<void> => {
+    const file = req.file;
+    if (!file) {
+      res.status(400).json({ error: "Missing audio file — upload as multipart field 'audio'" });
+      return;
+    }
 
-  const { audioObjectPath, durationSeconds } = parsed.data;
+    const allowedMime = ["audio/webm", "audio/ogg", "audio/mpeg", "audio/mp4", "audio/wav", "audio/x-m4a"];
+    if (!allowedMime.includes(file.mimetype)) {
+      res.status(400).json({ error: `Unsupported audio type: ${file.mimetype}` });
+      return;
+    }
 
-  const principalThread = await getOrCreatePrincipalThread();
+    const durationSeconds = req.body?.durationSeconds !== undefined
+      ? Number(req.body.durationSeconds)
+      : null;
 
-  const [message] = await db
-    .insert(messagesTable)
-    .values({
-      threadId: principalThread.id,
-      role: "user",
-      content: "",
+    const audioObjectPath = await objectStorage.uploadObjectEntity(
+      file.buffer,
+      file.originalname || `audio.${file.mimetype.split("/")[1]}`,
+      file.mimetype,
+    );
+
+    const principalThread = await getOrCreatePrincipalThread();
+
+    const [message] = await db
+      .insert(messagesTable)
+      .values({
+        threadId: principalThread.id,
+        role: "user",
+        content: "",
+        audioObjectPath,
+        direction: "inbound",
+        senderType: "principal",
+        contentType: "voice",
+        contentUrl: audioObjectPath,
+      })
+      .returning();
+
+    await db
+      .update(threadsTable)
+      .set({ lastMessageAt: new Date(), messageCount: (principalThread.messageCount ?? 0) + 1 })
+      .where(eq(threadsTable.id, principalThread.id))
+      .catch(() => {});
+
+    const jobId = randomUUID();
+
+    await db.insert(captureJobsTable).values({
+      jobId,
+      messageId: message!.id,
+      status: "queued",
       audioObjectPath,
-      direction: "inbound",
-      senderType: "principal",
-      contentType: "voice",
-      contentUrl: audioObjectPath,
-    })
-    .returning();
+      rawText: null,
+      durationSeconds: isNaN(durationSeconds as number) ? null : durationSeconds,
+    });
 
-  const jobId = randomUUID();
+    await enqueueCapture(jobId, message!.id);
 
-  await db.insert(captureJobsTable).values({
-    jobId,
-    messageId: message!.id,
-    status: "queued",
-    audioObjectPath,
-    rawText: null,
-    durationSeconds: durationSeconds ?? null,
-  });
-
-  await enqueueCapture(jobId, message!.id);
-
-  res.status(202).json({ messageId: message!.id, status: "transcribing" });
-});
+    res.status(202).json({ messageId: message!.id, status: "transcribing" });
+  },
+);
 
 router.get("/capture/voice/:id", async (req, res): Promise<void> => {
   const messageId = parseInt(req.params.id ?? "", 10);

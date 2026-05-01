@@ -63,20 +63,21 @@ export const SubmitCaptureBody = zod
   .describe("Either audioObjectPath or text must be provided");
 
 /**
- * Accepts an audio file (object storage path). Creates a message row
-immediately with status transcribing and enqueues a Whisper+Claude job.
+ * Accepts a multipart/form-data audio file upload. The server persists the
+audio to Replit Object Storage, creates a message row with status
+'transcribing', and enqueues a Whisper+Claude processing job.
 Returns messageId and status 'transcribing'.
+Max file size: 25 MB. Accepted MIME types: audio/webm, audio/ogg,
+audio/mpeg, audio/mp4, audio/wav, audio/x-m4a.
 
- * @summary Submit a voice capture
+ * @summary Submit a voice capture (file upload)
  */
 export const SubmitVoiceCaptureBody = zod.object({
-  audioObjectPath: zod
-    .string()
-    .describe("Object storage path of the uploaded audio file"),
+  audio: zod.instanceof(File).describe("Audio file to transcribe (25 MB max)"),
   durationSeconds: zod
     .number()
-    .nullish()
-    .describe("Duration of audio in seconds"),
+    .optional()
+    .describe("Optional recorded duration hint for logging"),
 });
 
 /**

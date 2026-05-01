@@ -55,23 +55,23 @@ app.use(healthRouter);
 const API_PUBLIC_PATHS = [
   "/health",
   "/healthz",
-  "/webhooks/twilio/sms-inbound",
-  "/webhooks/twilio/sms-status",
-  "/twilio/incoming",
-  "/twilio/voice",
+  "/webhooks/",
 ];
 
+function isPublicPath(reqPath: string): boolean {
+  return API_PUBLIC_PATHS.some((p) => {
+    if (p.endsWith("/")) return reqPath === p || reqPath.startsWith(p);
+    return reqPath === p || reqPath.startsWith(p + "/");
+  });
+}
+
 app.use("/api", (req: Request, res: Response, next: NextFunction) => {
-  if (API_PUBLIC_PATHS.some((p) => req.path === p || req.path.startsWith(p + "/"))) {
-    return next();
-  }
+  if (isPublicPath(req.path)) return next();
   return requireAuth()(req, res, next);
 });
 
 app.use("/api", (req: Request, res: Response, next: NextFunction) => {
-  if (API_PUBLIC_PATHS.some((p) => req.path === p || req.path.startsWith(p + "/"))) {
-    return next();
-  }
+  if (isPublicPath(req.path)) return next();
   return principalAuthMiddleware(req, res, next);
 });
 

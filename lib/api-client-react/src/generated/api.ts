@@ -298,11 +298,14 @@ export const useSubmitCapture = <
 };
 
 /**
- * Accepts an audio file (object storage path). Creates a message row
-immediately with status transcribing and enqueues a Whisper+Claude job.
+ * Accepts a multipart/form-data audio file upload. The server persists the
+audio to Replit Object Storage, creates a message row with status
+'transcribing', and enqueues a Whisper+Claude processing job.
 Returns messageId and status 'transcribing'.
+Max file size: 25 MB. Accepted MIME types: audio/webm, audio/ogg,
+audio/mpeg, audio/mp4, audio/wav, audio/x-m4a.
 
- * @summary Submit a voice capture
+ * @summary Submit a voice capture (file upload)
  */
 export const getSubmitVoiceCaptureUrl = () => {
   return `/api/capture/voice`;
@@ -312,11 +315,19 @@ export const submitVoiceCapture = async (
   submitVoiceCaptureBody: SubmitVoiceCaptureBody,
   options?: RequestInit,
 ): Promise<VoiceCaptureStarted> => {
+  const formData = new FormData();
+  formData.append(`audio`, submitVoiceCaptureBody.audio);
+  if (submitVoiceCaptureBody.durationSeconds !== undefined) {
+    formData.append(
+      `durationSeconds`,
+      submitVoiceCaptureBody.durationSeconds.toString(),
+    );
+  }
+
   return customFetch<VoiceCaptureStarted>(getSubmitVoiceCaptureUrl(), {
     ...options,
     method: "POST",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(submitVoiceCaptureBody),
+    body: formData,
   });
 };
 
@@ -365,7 +376,7 @@ export type SubmitVoiceCaptureMutationBody = BodyType<SubmitVoiceCaptureBody>;
 export type SubmitVoiceCaptureMutationError = ErrorType<ErrorEnvelope>;
 
 /**
- * @summary Submit a voice capture
+ * @summary Submit a voice capture (file upload)
  */
 export const useSubmitVoiceCapture = <
   TError = ErrorType<ErrorEnvelope>,
