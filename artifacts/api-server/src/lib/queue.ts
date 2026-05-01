@@ -17,14 +17,27 @@ async function handleFinalCaptureFailure(job: Job, err: Error): Promise<void> {
   logger.error({ err, jobId, messageId, attempts: job.attemptsMade }, "Capture job exhausted all retries");
 
   if (messageId) {
-    await db
-      .update(messagesTable)
-      .set({
-        content: "[transcription failed — tap to retry]",
-        transcriptionConfidence: "0.000",
-      })
+    const [message] = await db
+      .select({ contentType: messagesTable.contentType })
+      .from(messagesTable)
       .where(eq(messagesTable.id, messageId))
-      .catch((e) => logger.error({ e }, "Failed to update message with fallback"));
+      .limit(1);
+
+    if (message?.contentType === "voice") {
+      await db
+        .update(messagesTable)
+        .set({
+          content: "[transcription failed — tap to retry]",
+          transcriptionConfidence: "0.000",
+        })
+        .where(eq(messagesTable.id, messageId))
+        .catch((e) => logger.error({ e }, "Failed to update voice message with transcription fallback"));
+    } else {
+      logger.warn(
+        { jobId, messageId, contentType: message?.contentType },
+        "Non-voice capture job failed — preserving original message content, only marking job failed",
+      );
+    }
 
     await db
       .insert(agentActionsLogTable)
@@ -33,7 +46,7 @@ async function handleFinalCaptureFailure(job: Job, err: Error): Promise<void> {
         source: "capture",
         entityType: "message",
         entityId: String(messageId),
-        payload: { jobId, messageId, error: err.message, attempts: job.attemptsMade },
+        payload: { jobId, messageId, error: err.message, attempts: job.attemptsMade, contentType: message?.contentType },
       })
       .catch((e) => logger.error({ e }, "Failed to log final capture failure to agent_actions_log"));
   }
@@ -152,14 +165,28 @@ export async function enqueueCapture(jobId: string, messageId?: number): Promise
     processCaptureJob(jobId).catch(async (err) => {
       logger.error({ err, jobId }, "Inline capture processing failed after all retries");
       if (messageId) {
-        await db
-          .update(messagesTable)
-          .set({
-            content: "[transcription failed — tap to retry]",
-            transcriptionConfidence: "0.000",
-          })
+        const [message] = await db
+          .select({ contentType: messagesTable.contentType })
+          .from(messagesTable)
           .where(eq(messagesTable.id, messageId))
-          .catch(() => {});
+          .limit(1)
+          .catch(() => []);
+
+        if (message?.contentType === "voice") {
+          await db
+            .update(messagesTable)
+            .set({
+              content: "[transcription failed — tap to retry]",
+              transcriptionConfidence: "0.000",
+            })
+            .where(eq(messagesTable.id, messageId))
+            .catch(() => {});
+        } else {
+          logger.warn(
+            { jobId, messageId, contentType: message?.contentType },
+            "Non-voice capture failed inline — original message content preserved",
+          );
+        }
 
         await db
           .insert(agentActionsLogTable)

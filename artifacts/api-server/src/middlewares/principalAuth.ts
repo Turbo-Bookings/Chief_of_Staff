@@ -1,7 +1,7 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { db, principalTable } from "@workspace/db";
 import { isNull, eq, and } from "drizzle-orm";
-import { getAuth } from "@clerk/express";
+import { getAuth, createClerkClient } from "@clerk/express";
 import { logger } from "../lib/logger";
 
 declare global {
@@ -11,6 +11,11 @@ declare global {
     }
   }
 }
+
+const clerkClient = createClerkClient({
+  secretKey: process.env.CLERK_SECRET_KEY,
+  publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+});
 
 export async function principalAuthMiddleware(
   req: Request,
@@ -44,7 +49,31 @@ export async function principalAuthMiddleware(
   if (!unclaimedPrincipal) {
     logger.warn({ userId }, "Rejected: all principal accounts are claimed by another user");
     res.status(403).json({
-      error: "Forbidden — this CoS is linked to a different user account",
+      error: "Forbidden — this CoS is linked to a different account",
+    });
+    return;
+  }
+
+  let clerkUserEmail: string | undefined;
+  try {
+    const clerkUser = await clerkClient.users.getUser(userId);
+    const primary = clerkUser.emailAddresses.find(
+      (e) => e.id === clerkUser.primaryEmailAddressId,
+    );
+    clerkUserEmail = primary?.emailAddress ?? clerkUser.emailAddresses[0]?.emailAddress;
+  } catch (err) {
+    logger.error({ err, userId }, "Failed to fetch Clerk user for email verification");
+    res.status(500).json({ error: "Could not verify user identity" });
+    return;
+  }
+
+  if (!clerkUserEmail || clerkUserEmail.toLowerCase() !== (unclaimedPrincipal.email ?? "").toLowerCase()) {
+    logger.warn(
+      { userId, clerkUserEmail, principalEmail: unclaimedPrincipal.email },
+      "Rejected: authenticated user email does not match principal email",
+    );
+    res.status(403).json({
+      error: "Forbidden — your account is not authorized as the principal for this CoS",
     });
     return;
   }
@@ -58,12 +87,15 @@ export async function principalAuthMiddleware(
   if (!claimed) {
     logger.warn({ userId }, "Principal claim race — another user claimed principal concurrently");
     res.status(403).json({
-      error: "Forbidden — this CoS is linked to a different user account",
+      error: "Forbidden — this CoS is linked to a different account",
     });
     return;
   }
 
-  logger.info({ userId, principalId: claimed.id }, "Principal account claimed and bound to Clerk user");
+  logger.info(
+    { userId, principalId: claimed.id, email: clerkUserEmail },
+    "Principal account claimed and bound to Clerk user",
+  );
   req.principal = claimed;
   next();
 }
