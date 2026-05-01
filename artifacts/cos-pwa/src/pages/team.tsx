@@ -1,10 +1,7 @@
-import { useState } from "react";
-import { Loader2, User, Phone, Mail, X } from "lucide-react";
+import { Loader2, User, Phone } from "lucide-react";
 import {
   useListTeamMembers,
   getListTeamMembersQueryKey,
-  useGetTeamMember,
-  getGetTeamMemberQueryKey,
 } from "@workspace/api-client-react";
 
 const AVATAR_COLORS = [
@@ -32,106 +29,20 @@ function getInitials(name: string): string {
     .toUpperCase();
 }
 
-function Avatar({ name, size = "sm" }: { name: string; size?: "sm" | "lg" }) {
+function Avatar({ name }: { name: string }) {
   const idx = nameToColorIndex(name);
   const color = AVATAR_COLORS[idx];
-  const sizeClass = size === "lg" ? "w-16 h-16 text-xl" : "w-[38px] h-[38px] text-sm";
 
   return (
     <div
-      className={`${sizeClass} ${color.bg} ${color.text} rounded-full flex items-center justify-center font-display font-semibold shrink-0`}
+      className={`w-[38px] h-[38px] ${color.bg} ${color.text} rounded-full flex items-center justify-center font-display font-semibold text-sm shrink-0`}
     >
       {getInitials(name)}
     </div>
   );
 }
 
-function MemberDetail({ id, onClose }: { id: number; onClose: () => void }) {
-  const { data: member, isLoading } = useGetTeamMember(id, {
-    query: {
-      queryKey: getGetTeamMemberQueryKey(id),
-      enabled: !!id,
-    },
-  });
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-card border border-border rounded-t-2xl md:rounded-2xl w-full md:max-w-sm p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="font-mono text-[10px] text-[#DC2A2A] uppercase tracking-[0.12em] font-semibold">
-            &#8212; Team Member
-          </div>
-          <button
-            onClick={onClose}
-            data-testid="btn-close-member-detail"
-            className="w-7 h-7 rounded flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 size={20} className="animate-spin text-[#DC2A2A]" />
-          </div>
-        ) : member ? (
-          <>
-            <div className="flex items-center gap-4">
-              <Avatar name={member.name} size="lg" />
-              <div>
-                <div
-                  className="font-display text-xl font-semibold text-foreground"
-                  data-testid="member-detail-name"
-                >
-                  {member.name}
-                </div>
-                <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">
-                  {member.role}
-                </div>
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      member.isActive ? "bg-[#4ADE80]" : "bg-muted-foreground"
-                    }`}
-                  />
-                  <span className="font-mono text-[10px] text-muted-foreground">
-                    {member.isActive ? "Active" : "Inactive"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {(member.phone || member.email) && (
-              <div className="space-y-2.5 pt-2 border-t border-border">
-                {member.phone && (
-                  <div className="flex items-center gap-2.5 text-sm">
-                    <Phone size={13} className="text-muted-foreground shrink-0" />
-                    <span className="text-foreground font-mono text-xs">{member.phone}</span>
-                  </div>
-                )}
-                {member.email && (
-                  <div className="flex items-center gap-2.5 text-sm">
-                    <Mail size={13} className="text-muted-foreground shrink-0" />
-                    <span className="text-foreground text-sm">{member.email}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-          </>
-        ) : (
-          <div className="text-muted-foreground text-sm text-center py-4">
-            Member not found.
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export default function TeamPage() {
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-
   const { data: members, isLoading } = useListTeamMembers({
     query: { queryKey: getListTeamMembersQueryKey() },
   });
@@ -167,11 +78,10 @@ export default function TeamPage() {
           data-testid="team-grid"
         >
           {memberList.map((member) => (
-            <button
+            <div
               key={member.id}
-              onClick={() => setSelectedId(member.id)}
               data-testid={`member-card-${member.id}`}
-              className="bg-card border border-border rounded-[10px] p-[18px] text-left hover:border-muted-foreground/30 hover:-translate-y-px transition-all duration-150 group"
+              className="bg-card border border-border rounded-[10px] p-[18px]"
             >
               {/* Card head */}
               <div className="flex items-center gap-3 mb-3.5">
@@ -206,8 +116,7 @@ export default function TeamPage() {
                   </div>
                 )}
               </div>
-
-            </button>
+            </div>
           ))}
 
           {memberList.length === 0 && (
@@ -217,10 +126,6 @@ export default function TeamPage() {
             </div>
           )}
         </div>
-      )}
-
-      {selectedId !== null && (
-        <MemberDetail id={selectedId} onClose={() => setSelectedId(null)} />
       )}
     </div>
   );

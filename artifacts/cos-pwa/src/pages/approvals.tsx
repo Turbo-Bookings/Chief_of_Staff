@@ -23,13 +23,10 @@ export default function ApprovalsPage() {
           <CheckCheck size={24} className="text-[#DC2A2A]" />
         </div>
         <div className="font-display text-xl font-semibold text-foreground mb-2">
-          Approvals Coming Soon
+          Nothing pending
         </div>
         <div className="text-sm text-muted-foreground max-w-xs leading-relaxed">
           Email and message drafts requiring your sign-off will appear here. Voice-captured communications are queued for your review.
-        </div>
-        <div className="mt-6 font-mono text-[10px] text-muted-foreground uppercase tracking-[0.1em] px-3 py-1.5 bg-card border border-border rounded-full">
-          Phase 2 Feature
         </div>
       </div>
     </div>

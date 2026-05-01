@@ -3,10 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Send, Mic, MicOff, Loader2, RefreshCw } from "lucide-react";
 import {
-  useListThreads,
-  getListThreadsQueryKey,
-  useGetThreadMessages,
-  getGetThreadMessagesQueryKey,
+  useGetPrincipalThread,
+  getGetPrincipalThreadQueryKey,
   useSubmitCapture,
   useSubmitVoiceCapture,
   useGetCaptureJobStatus,
@@ -14,6 +12,9 @@ import {
   useGetVoiceCaptureStatus,
   getGetVoiceCaptureStatusQueryKey,
 } from "@workspace/api-client-react";
+import type { Message } from "@workspace/api-client-react";
+
+const SCROLL_KEY = "talk-scroll-pos";
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -27,8 +28,99 @@ function formatDate(iso: string) {
   });
 }
 
-function MessageBubble({ msg }: { msg: { role: string; content: string; createdAt: string } }) {
+function RecordingWaveform() {
+  return (
+    <div className="flex items-center gap-[3px]" aria-label="Recording">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <span
+          key={i}
+          className="block w-[3px] rounded-full bg-[#DC2A2A]"
+          style={{
+            height: `${8 + (i % 3) * 6}px`,
+            animation: `waveBar 0.9s ease-in-out ${i * 0.12}s infinite alternate`,
+          }}
+        />
+      ))}
+      <style>{`@keyframes waveBar { from { transform: scaleY(0.4); } to { transform: scaleY(1.4); } }`}</style>
+    </div>
+  );
+}
+
+function VoiceMessageRow({ msg }: { msg: Message }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+
+  const togglePlay = () => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (playing) {
+      el.pause();
+      setPlaying(false);
+    } else {
+      el.play().then(() => setPlaying(true)).catch(() => {});
+    }
+  };
+
+  const hasAudio = !!msg.audioObjectPath;
+  const transcript = msg.content || undefined;
+
+  return (
+    <div className="flex items-start gap-2 max-w-[80%] ml-auto">
+      <div className="rounded-[10px] px-3.5 py-2.5 bg-[#DC2A2A] text-white rounded-br-[2px] space-y-1.5">
+        <div className="flex items-center gap-2">
+          {hasAudio ? (
+            <button
+              onClick={togglePlay}
+              className="w-6 h-6 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center shrink-0 transition-colors"
+              title={playing ? "Pause" : "Play voice memo"}
+            >
+              {playing ? (
+                <span className="w-2 h-2 bg-white rounded-sm" />
+              ) : (
+                <span
+                  className="w-0 h-0 border-y-[5px] border-y-transparent border-l-[8px] border-l-white ml-0.5"
+                />
+              )}
+            </button>
+          ) : (
+            <Mic size={14} className="text-white/80 shrink-0" />
+          )}
+          <span className="text-[13px] font-medium">
+            {playing ? "Playing…" : "Voice memo"}
+          </span>
+        </div>
+        {transcript && (
+          <p className="text-[12px] text-white/80 italic leading-snug">
+            &ldquo;{transcript}&rdquo;
+          </p>
+        )}
+        {hasAudio && (
+          <audio
+            ref={audioRef}
+            src={`/api/storage/objects/${msg.audioObjectPath}`}
+            onEnded={() => setPlaying(false)}
+            preload="none"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({ msg }: { msg: Message }) {
   const isUser = msg.role === "user";
+  const isVoice = msg.contentType === "voice";
+
+  if (isUser && isVoice) {
+    return (
+      <div data-testid={`message-${msg.role}`} className="flex flex-col items-end gap-1">
+        <VoiceMessageRow msg={msg} />
+        <div className="font-mono text-[9px] text-muted-foreground">
+          {formatTime(msg.createdAt)}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -137,27 +229,18 @@ export default function TalkPage() {
   const [pendingVoiceId, setPendingVoiceId] = useState<number | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const { data: threads } = useListThreads({
-    query: { queryKey: getListThreadsQueryKey() },
+  const {
+    data: threadData,
+    refetch: refetchThread,
+    isLoading: isThreadLoading,
+  } = useGetPrincipalThread({
+    query: { queryKey: getGetPrincipalThreadQueryKey() },
   });
-  const thread = threads?.[0];
-  const threadId = thread?.id;
 
-  const threadMsgParams = { limit: 100 };
-  const { data: messagesData, refetch: refetchMessages } = useGetThreadMessages(
-    threadId!,
-    threadMsgParams,
-    {
-      query: {
-        enabled: !!threadId,
-        queryKey: getGetThreadMessagesQueryKey(threadId!, threadMsgParams),
-      },
-    },
-  );
-
-  const messages = Array.isArray(messagesData) ? messagesData : [];
+  const messages: Message[] = threadData?.messages ?? [];
 
   const { mutateAsync: submitCapture, isPending: isSubmitting } = useSubmitCapture();
   const { mutateAsync: submitVoiceCapture, isPending: isSubmittingVoice } = useSubmitVoiceCapture();
@@ -165,8 +248,64 @@ export default function TalkPage() {
   const isPending = isSubmitting || isSubmittingVoice || !!pendingJobId || !!pendingVoiceId;
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, pendingJobId, pendingVoiceId]);
+    if (messages.length > 0) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages.length]);
+
+  useEffect(() => {
+    if (pendingJobId || pendingVoiceId) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [pendingJobId, pendingVoiceId]);
+
+  const saveScrollPos = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (el) {
+      try {
+        localStorage.setItem(SCROLL_KEY, String(el.scrollTop));
+      } catch {}
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el || messages.length === 0) return;
+    try {
+      const saved = localStorage.getItem(SCROLL_KEY);
+      if (saved !== null) {
+        const pos = parseInt(saved, 10);
+        if (!isNaN(pos)) el.scrollTop = pos;
+      } else {
+        bottomRef.current?.scrollIntoView();
+      }
+    } catch {}
+  }, [messages.length > 0]);
+
+  const handlePullToRefresh = useCallback(() => {
+    refetchThread();
+  }, [refetchThread]);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    let startY = 0;
+    const onTouchStart = (e: TouchEvent) => { startY = e.touches[0].clientY; };
+    const onTouchEnd = (e: TouchEvent) => {
+      const dy = e.changedTouches[0].clientY - startY;
+      if (dy > 60 && el.scrollTop === 0) {
+        handlePullToRefresh();
+      }
+    };
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    el.addEventListener("scroll", saveScrollPos, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("scroll", saveScrollPos);
+    };
+  }, [handlePullToRefresh, saveScrollPos]);
 
   const handleSendText = async () => {
     const content = text.trim();
@@ -189,15 +328,13 @@ export default function TalkPage() {
 
   const handleJobDone = useCallback(() => {
     setPendingJobId(null);
-    refetchMessages();
-    queryClient.invalidateQueries({ queryKey: getListThreadsQueryKey() });
-  }, [refetchMessages, queryClient]);
+    queryClient.invalidateQueries({ queryKey: getGetPrincipalThreadQueryKey() });
+  }, [queryClient]);
 
   const handleVoiceDone = useCallback(() => {
     setPendingVoiceId(null);
-    refetchMessages();
-    queryClient.invalidateQueries({ queryKey: getListThreadsQueryKey() });
-  }, [refetchMessages, queryClient]);
+    queryClient.invalidateQueries({ queryKey: getGetPrincipalThreadQueryKey() });
+  }, [queryClient]);
 
   const startRecording = async () => {
     if (isPending) return;
@@ -234,7 +371,7 @@ export default function TalkPage() {
     setIsRecording(false);
   };
 
-  const grouped: Record<string, typeof messages> = {};
+  const grouped: Record<string, Message[]> = {};
   for (const msg of messages) {
     const day = formatDate(msg.createdAt);
     if (!grouped[day]) grouped[day] = [];
@@ -254,12 +391,16 @@ export default function TalkPage() {
           </h1>
         </div>
         <button
-          onClick={() => refetchMessages()}
+          onClick={() => refetchThread()}
           data-testid="btn-refresh-messages"
           className="w-8 h-8 rounded-[7px] bg-card border border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
           title="Refresh"
         >
-          <RefreshCw size={14} />
+          {isThreadLoading ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <RefreshCw size={14} />
+          )}
         </button>
       </div>
 
@@ -272,7 +413,11 @@ export default function TalkPage() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-5 flex flex-col gap-[18px]">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto px-4 md:px-8 py-5 flex flex-col gap-[18px]"
+        data-testid="messages-container"
+      >
         {messages.length === 0 && !isPending ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-16">
             <div className="w-12 h-12 rounded-full bg-[rgba(220,42,42,0.12)] flex items-center justify-center mb-4">
@@ -316,6 +461,12 @@ export default function TalkPage() {
 
       {/* Compose area */}
       <div className="shrink-0 border-t border-border bg-card px-4 md:px-6 py-4">
+        {isRecording && (
+          <div className="flex items-center gap-2 mb-2 justify-center">
+            <RecordingWaveform />
+            <span className="font-mono text-[11px] text-[#DC2A2A]">Recording… release to send</span>
+          </div>
+        )}
         <div className="flex items-center gap-3 bg-accent border border-border rounded-[30px] px-4 py-1.5 max-w-4xl mx-auto">
           <textarea
             data-testid="input-message"
@@ -338,8 +489,8 @@ export default function TalkPage() {
           <button
             onMouseDown={startRecording}
             onMouseUp={stopRecording}
-            onTouchStart={startRecording}
-            onTouchEnd={stopRecording}
+            onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
+            onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
             data-testid="btn-voice-record"
             disabled={isSubmitting || isSubmittingVoice || !!pendingJobId || !!pendingVoiceId}
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0 ${

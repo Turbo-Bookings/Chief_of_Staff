@@ -23,13 +23,10 @@ export default function InboxPage() {
           <Inbox size={24} className="text-[#6BA4FF]" />
         </div>
         <div className="font-display text-xl font-semibold text-foreground mb-2">
-          Inbox Coming Soon
+          Email integration coming in Phase 3
         </div>
         <div className="text-sm text-muted-foreground max-w-xs leading-relaxed">
           Connect your email accounts and the AI will triage, prioritize, and draft responses on your behalf.
-        </div>
-        <div className="mt-6 font-mono text-[10px] text-muted-foreground uppercase tracking-[0.1em] px-3 py-1.5 bg-card border border-border rounded-full">
-          Phase 2 Feature
         </div>
       </div>
     </div>

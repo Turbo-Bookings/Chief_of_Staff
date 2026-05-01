@@ -103,7 +103,7 @@ export default function AppShell({ activeTab, children }: AppShellProps) {
         <div className="px-4 py-3.5 border-t border-border">
           <div className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground mb-2.5">
             <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80] shrink-0 animate-pulse" />
-            System Online
+            Agent online
           </div>
           <button
             onClick={() => signOut({ redirectUrl: "/" })}
