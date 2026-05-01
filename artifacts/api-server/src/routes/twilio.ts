@@ -9,12 +9,19 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 const TWILIO_AUTH_TOKEN_PLACEHOLDER = "PLACEHOLDER";
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 function twilioSignatureMiddleware(req: Request, res: Response, next: NextFunction): void {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const tokenMissingOrPlaceholder = !authToken || authToken === TWILIO_AUTH_TOKEN_PLACEHOLDER;
 
-  if (!authToken || authToken === TWILIO_AUTH_TOKEN_PLACEHOLDER) {
-    logger.warn("TWILIO_AUTH_TOKEN not set or placeholder — skipping signature validation in dev mode");
+  if (tokenMissingOrPlaceholder) {
+    if (IS_PRODUCTION) {
+      logger.error("TWILIO_AUTH_TOKEN is not configured in production — rejecting all webhook traffic");
+      res.status(500).json({ error: "Webhook security not configured" });
+      return;
+    }
+    logger.warn("TWILIO_AUTH_TOKEN not set — skipping signature validation (non-production only)");
     return next();
   }
 
