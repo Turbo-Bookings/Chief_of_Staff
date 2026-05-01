@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Send, Mic, MicOff, Loader2, RefreshCw } from "lucide-react";
+import { Send, Mic, MicOff, Loader2, RefreshCw, Check, Pencil, X } from "lucide-react";
 import {
   useGetPrincipalThread,
   getGetPrincipalThreadQueryKey,
@@ -11,6 +11,7 @@ import {
   getGetCaptureJobStatusQueryKey,
   useGetVoiceCaptureStatus,
   getGetVoiceCaptureStatusQueryKey,
+  useCreateTask,
 } from "@workspace/api-client-react";
 import type { Message } from "@workspace/api-client-react";
 
@@ -56,16 +57,46 @@ const PARSE_TYPE_COLOR: Record<string, string> = {
   question: "text-[#F5A524] bg-[#F5A524]/10 border-[#F5A524]/20",
 };
 
+const PRIORITY_OPTS = ["urgent", "high", "normal", "low"] as const;
+
 function ClaudeParseCard({ parse }: { parse: Record<string, unknown> }) {
   const type = parse["type"] as string | undefined;
-  const title = parse["title"] as string | undefined;
-  const priority = (parse["proposedPriority"] ?? parse["proposed_priority"]) as string | undefined;
-  const due = (parse["proposedDue"] ?? parse["proposed_due"]) as string | undefined;
+  const rawTitle = parse["title"] as string | undefined;
+  const rawPriority = (parse["proposedPriority"] ?? parse["proposed_priority"]) as string | undefined;
+  const rawDue = (parse["proposedDue"] ?? parse["proposed_due"]) as string | undefined;
   const tags = (parse["tags"] as string[] | undefined) ?? [];
 
-  if (!title) return null;
+  const [confirmed, setConfirmed] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(rawTitle ?? "");
+  const [editPriority, setEditPriority] = useState(rawPriority ?? "normal");
+  const [editDue, setEditDue] = useState(rawDue ? rawDue.slice(0, 10) : "");
+
+  const { mutateAsync: createTask, isPending: isSaving } = useCreateTask();
+
+  if (!rawTitle) return null;
 
   const typeClass = type ? (PARSE_TYPE_COLOR[type] ?? PARSE_TYPE_COLOR["context"]) : PARSE_TYPE_COLOR["context"];
+
+  const handleConfirm = () => setConfirmed(true);
+
+  const handleSaveEdit = async () => {
+    if (!editTitle.trim()) { toast.error("Title required."); return; }
+    try {
+      await createTask({
+        data: {
+          title: editTitle.trim(),
+          priority: editPriority as "urgent" | "high" | "normal" | "low",
+          dueAt: editDue ? new Date(editDue).toISOString() : undefined,
+        },
+      });
+      setEditing(false);
+      setConfirmed(true);
+      toast.success("Task saved with corrections.");
+    } catch {
+      toast.error("Failed to save task.");
+    }
+  };
 
   return (
     <div className="mt-2 ml-0 bg-card border border-border rounded-[8px] px-3 py-2.5 max-w-[80%]">
@@ -75,24 +106,92 @@ function ClaudeParseCard({ parse }: { parse: Record<string, unknown> }) {
             {type.replace(/_/g, " ")}
           </span>
         )}
-        <span className="font-mono text-[8px] text-[#4ADE80] uppercase tracking-wider">Captured</span>
+        <span className={`font-mono text-[8px] uppercase tracking-wider ${confirmed ? "text-[#4ADE80]" : "text-muted-foreground"}`}>
+          {confirmed ? "✓ Confirmed" : "Captured"}
+        </span>
       </div>
-      <div className="text-[13px] font-medium text-foreground leading-snug">{title}</div>
-      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-        {priority && (
-          <span className="font-mono text-[8px] text-muted-foreground uppercase tracking-wider">{priority}</span>
-        )}
-        {due && (
-          <span className="font-mono text-[8px] text-muted-foreground">
-            Due {new Date(due).toLocaleDateString([], { month: "short", day: "numeric" })}
-          </span>
-        )}
-        {tags.slice(0, 3).map((tag) => (
-          <span key={tag} className="font-mono text-[8px] bg-accent px-1.5 py-0.5 rounded text-muted-foreground border border-border">
-            {tag}
-          </span>
-        ))}
-      </div>
+
+      {editing ? (
+        <div className="space-y-2">
+          <input
+            autoFocus
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSaveEdit(); if (e.key === "Escape") setEditing(false); }}
+            className="w-full text-[12.5px] font-medium bg-background border border-border rounded-[5px] px-2 py-1.5 text-foreground focus:outline-none focus:border-[#DC2A2A]/50"
+            placeholder="Task title"
+          />
+          <div className="flex gap-2">
+            <select
+              value={editPriority}
+              onChange={(e) => setEditPriority(e.target.value)}
+              className="flex-1 font-mono text-[9px] bg-background border border-border rounded-[5px] px-1.5 py-1.5 text-foreground focus:outline-none"
+            >
+              {PRIORITY_OPTS.map((p) => (
+                <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={editDue}
+              onChange={(e) => setEditDue(e.target.value)}
+              className="flex-1 font-mono text-[9px] bg-background border border-border rounded-[5px] px-1.5 py-1.5 text-foreground focus:outline-none"
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setEditing(false)}
+              className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X size={8} /> Cancel
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              disabled={isSaving}
+              className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider px-2 py-1 rounded bg-[#DC2A2A] text-white hover:bg-[#A8201F] transition-colors disabled:opacity-50"
+            >
+              {isSaving ? <Loader2 size={8} className="animate-spin" /> : null} Save
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="text-[13px] font-medium text-foreground leading-snug">{rawTitle}</div>
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            {rawPriority && (
+              <span className="font-mono text-[8px] text-muted-foreground uppercase tracking-wider">{rawPriority}</span>
+            )}
+            {rawDue && (
+              <span className="font-mono text-[8px] text-muted-foreground">
+                Due {new Date(rawDue).toLocaleDateString([], { month: "short", day: "numeric" })}
+              </span>
+            )}
+            {tags.slice(0, 3).map((tag) => (
+              <span key={tag} className="font-mono text-[8px] bg-accent px-1.5 py-0.5 rounded text-muted-foreground border border-border">
+                {tag}
+              </span>
+            ))}
+          </div>
+          {!confirmed && (
+            <div className="flex gap-2 mt-2 pt-2 border-t border-border">
+              <button
+                onClick={handleConfirm}
+                data-testid="parse-card-confirm"
+                className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider px-2.5 py-1 rounded bg-[#4ADE80]/10 text-[#4ADE80] border border-[#4ADE80]/20 hover:bg-[#4ADE80]/20 transition-colors"
+              >
+                <Check size={8} strokeWidth={3} /> Confirm
+              </button>
+              <button
+                onClick={() => setEditing(true)}
+                data-testid="parse-card-edit"
+                className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider px-2.5 py-1 rounded bg-accent text-muted-foreground border border-border hover:text-foreground transition-colors"
+              >
+                <Pencil size={8} /> Edit
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
