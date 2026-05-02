@@ -22,23 +22,25 @@ What this commits us to / what we're giving up.
 
 ---
 
-## 001 — Branch model: main ← staging ← develop ← feature/*
+## 001 — Branch model: main ← staging ← feature/*
 
 **Date:** 2026-05-01
-**Status:** accepted
+**Status:** accepted (revised same day from initial 4-branch proposal)
 
 ### Context
-Doc 03 §3 specifies a three-branch model (main / staging / feature). Adopting it as the working pattern, with an extra `develop` integration branch so multiple in-flight features can be merged before promoting to staging.
+Doc 03 §3 specifies a three-branch model (main / staging / feature). Initial bootstrap added an extra `develop` integration branch, but that pattern only pays off with multiple devs merging parallel features before promoting to staging — not the case here. Reverted to the spec exactly to keep mental overhead low.
 
 ### Decision
 - `main` — production. Replit prod deployment tracks this. Branch-protected, PRs only.
-- `staging` — staging environment. Replit staging deployment tracks this. PRs from `develop` merge here.
-- `develop` — integration. Feature branches merge here.
-- `feature/*` — work in progress, branched off `develop`.
+- `staging` — staging environment. Replit staging deployment tracks this. Branch-protected, PRs only. Feature branches merge here.
+- `feature/*` — work in progress, branched off `staging`.
+
+Code flows in one direction: `feature/*` → `staging` → `main`.
 
 ### Consequences
 - Two Replit deployments needed (staging + prod). Staging not yet wired.
-- Branch protection on `main` and `staging` to be set in the GitHub UI manually.
+- Branch protection on `main` and `staging` to be set in the GitHub UI.
+- The Replit IDE workspace must be checked out on a feature branch when editing — never directly on `main` or `staging`.
 
 ---
 

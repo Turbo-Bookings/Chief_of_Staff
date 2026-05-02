@@ -51,7 +51,7 @@ It is **not** a general assistant. It has standing authority over delegation, fo
 
 ## Branch model
 
-`main` (prod) ← `staging` ← `develop` ← `feature/*`. PRs only, no direct push to `main` or `staging`. See `/docs/state/DECISIONS.md` #001.
+`main` (prod) ← `staging` ← `feature/*`. Feature branches are born off `staging`, merged back into `staging` via PR, and from `staging` to `main` via PR when ready to ship. PRs only, no direct push to `main` or `staging`. See `/docs/state/DECISIONS.md` #001.
 
 ## House rules
 
