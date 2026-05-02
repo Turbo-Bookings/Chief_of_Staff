@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ClerkProvider, SignIn, SignUp, Show } from "@clerk/react";
+import { ClerkProvider, SignIn, SignUp, Show, useAuth } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { Toaster } from "sonner";
 import AppShell from "@/components/AppShell";
 import TalkPage from "@/pages/talk";
@@ -77,6 +78,16 @@ const clerkAppearance = {
     alert: "border-[#2A2A2A]",
   },
 };
+
+function ClerkApiAuthBridge() {
+  const { isLoaded, getToken } = useAuth();
+  useEffect(() => {
+    if (!isLoaded) return;
+    setAuthTokenGetter(() => getToken());
+    return () => setAuthTokenGetter(null);
+  }, [isLoaded, getToken]);
+  return null;
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return (
@@ -212,6 +223,7 @@ function App() {
   return (
     <BrowserRouter basename={basePath}>
       <ClerkProvider publishableKey={clerkPubKey}>
+        <ClerkApiAuthBridge />
         <QueryClientProvider client={queryClient}>
           <Router />
           <Toaster
