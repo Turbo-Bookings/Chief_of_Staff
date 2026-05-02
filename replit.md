@@ -2,7 +2,13 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Built for Selmen Hassen (CEO, Takeovers Rentals). Phase 1 PWA shell + backend infrastructure complete.
+pnpm workspace monorepo using TypeScript. Built for Selmen Hassen (CEO, Takeovers Rentals). Phase 1 PWA shell + backend infrastructure complete (~95%); pending end-to-end smoke test after first publish with secrets attached.
+
+**Authoritative spec lives in `/docs/specs/`** (13 documents, .docx + .pdf + .txt extracts). When in doubt, build to the spec.
+
+**Live state lives in `/docs/state/`**: read `CURRENT.md` first at every session start; append to `SESSION_LOG.md` and rewrite `NEXT.md` at every session end.
+
+**Branch model**: `main` (production) ← `staging` ← `feature/*`. PRs only — no direct push to `main` or `staging`. See `/docs/state/DECISIONS.md` #001.
 
 ## Stack
 
@@ -43,14 +49,14 @@ All routes are relative to the `/cos-pwa` base path.
 
 - `/talk` — Voice/text capture (functional: MediaRecorder + useSubmitVoiceCapture + useSubmitCapture)
 - `/today` — AI daily briefing + stats (functional: useGetTodayBriefing)
-- `/approvals` — Placeholder (Phase 2 feature)
-- `/inbox` — Placeholder (Phase 2 feature)
+- `/approvals` — Placeholder (Phase 2 feature — see `/docs/specs/05_*.txt`)
+- `/inbox` — Placeholder (Phase 3 feature — email handling)
 - `/team` — Team card grid (functional: useListTeamMembers, name-hash avatar colors)
-- `/projects` — Placeholder (Phase 3 feature)
-- `/insights` — Placeholder (Phase 3 feature)
+- `/projects` — Placeholder (Phase 5 feature)
+- `/insights` — Placeholder (Phase 6 feature — learning loop)
 
 ### Frontend PWA Key Files (artifacts/cos-pwa/src)
-- `App.tsx` — Clerk + Wouter router, all 7 routes
+- `App.tsx` — Clerk + React Router v6, all 7 routes
 - `components/AppShell.tsx` — Sidebar + mobile bottom bar (3 sections: Command, Operations, Intelligence)
 - `pages/talk.tsx` — Chat thread, text + voice capture (VoiceStatusBanner polls useGetVoiceCaptureStatus)
 - `pages/today.tsx` — Daily briefing with stat cards + markdown
