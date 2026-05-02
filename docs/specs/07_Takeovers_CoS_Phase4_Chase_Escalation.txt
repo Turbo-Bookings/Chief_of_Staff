@@ -1,0 +1,419 @@
+TAKEOVERS CHIEF OF STAFF
+Phase 4
+Chase + Escalation
+Document 07 of 13
+Estimated build time: 1-2 weeks
+Outcome: Nothing falls through the cracks. The Fareharbor migration cannot happen again.
+
+Phase Goal
+Phase 4 closes the third and most operationally important loop: Chase. The agent now monitors every dispatched task, sends nudges at appropriate intervals, and escalates to Selmen when team members go silent past the threshold.
+This is the loop that prevents Fareharbor-style fires. Selmen's pain isn't generating tasks or sending them — it's the gap between dispatch and follow-up. By the end of Phase 4, that gap is closed automatically.
+Phase 4 also extends chase logic to email — drafts that sit unactioned, conversations awaiting reply, important emails Selmen flagged but didn't action. The agent now actively manages a queue of "things still in motion."
+What you can do at the end of Phase 4:
+	•	Every dispatched task has automatic nudges scheduled at appropriate intervals
+	•	Team members get soft → firm → escalate progression based on silence duration
+	•	Escalations push to Selmen via SMS with recommended actions
+	•	Email drafts sitting in Approvals nudge Selmen if unactioned for too long
+	•	Important flagged emails follow the same chase pattern
+	•	Today tab shows a dedicated 'Awaiting' section for in-flight items
+What is explicitly NOT in this phase:
+	•	No project-level chase logic (Phase 5 — milestone-aware chase)
+	•	No learning of personalized chase intervals (Phase 6)
+	•	No automatic re-dispatch to a backup person (manual decision for now)
+
+1. The Follow-up Scheduler
+The follow-up scheduler is a background job that runs every 5 minutes, finds all followups rows where scheduled_for <= NOW() AND status = 'pending', and processes them.
+1.1 Default cadence per priority
+Priority
+Nudge 1 (soft)
+Nudge 2 (firm)
+Nudge 3 (escalate)
+Behavior
+urgent
++4h
++8h
++12h (escalates)
+Tight cadence; escalation triggers SMS to Selmen
+high
++12h
++24h
++36h
+Day-and-a-half escalation window
+normal
++24h
++48h
++72h
+Standard 3-day window — most tasks fall here
+low
++72h
++5 days
++7 days
+Patient cadence; low-priority items don't burn attention
+1.2 Cadence is dispatched-time-relative
+Nudges are scheduled relative to dispatched_at, not to created_at. The clock starts when the task left the agent's outbound, not when Selmen captured it.
+1.3 Cadence honors working hours
+If a nudge would fire outside the team member's working_hours, it shifts to the next working hour. Example: Test-Orlando works 8 AM - 8 PM. A nudge scheduled for 11 PM Tuesday shifts to 8 AM Wednesday. This avoids waking people up but keeps Selmen's escalation window honest — the silence duration is still measured against the original schedule.
+1.4 Cadence pauses when responses come in
+Any inbound message from a team member on a task's thread satisfies pending nudges automatically:
+	•	Reply categorized as 'acknowledgment' or 'working_on_it' → satisfies nudge 1, advances to nudge 2 with re-scheduled clock
+	•	Reply categorized as 'completed' → cancels all remaining nudges, marks task complete
+	•	Reply categorized as 'blocked' → cancels nudges, creates an escalation row immediately (Selmen needs to see blockers)
+	•	Reply with question → satisfies current nudge, awaits next agent action (auto-reply if Tier A, draft if Tier B)
+1.5 The clock resets on agent re-engagement
+If Selmen replies on the thread (or if the agent sends a new message that's not a nudge), the chase clock resets. This prevents the agent from firing a nudge 3 hours after Selmen and the team member just finished a back-and-forth.
+
+2. Nudge Message Generation
+2.1 Nudge level 1 — soft
+Tone: friendly, no pressure. Acknowledges the person is busy. Often uses the team member's communication style preference.
+Detailed style nudge (for Nick, Josh, Oscar)
+Hey Nick, just circling back on the tracking pixel update I
+sent over yesterday. No rush — just wanted to make sure it
+didn't get buried. Let me know if anything's blocking it.
+
+[link to original task]
+Terse style nudge (for Orlando, Joan, others)
+Hey Orlando — circling back on the trail check. Status?
+2.2 Nudge level 2 — firm
+Tone: still friendly but explicit about the timeline. Mentions the deadline if there is one. Asks for an ETA.
+Detailed firm nudge
+Hey Nick — wanted to follow up again on the tracking pixel.
+Original ask was 48 hours ago. Are we good to ship by
+Friday or do you need more time / something unblocked?
+Terse firm nudge
+Orlando — still need a status on the trail check. ETA?
+2.3 Nudge level 3 — escalation (different mechanic)
+Level 3 is NOT another message to the team member. It's an escalation to Selmen. The agent does NOT keep nudging the team member into the void — the escalation handoff to Selmen is the next correct action.
+	•	Creates an escalations row
+	•	Surfaces in Today tab under 'Needs your attention'
+	•	Sends SMS push to Selmen
+	•	Pauses further nudges on this task — the clock stops because the ball is now in Selmen's court
+This is intentional design. Continuing to nudge a team member who isn't responding wastes goodwill and trains them to ignore the agent. After two nudges, escalation is the operationally correct move — Selmen makes a phone call, takes a different action, or accepts the silence.
+2.4 Nudge prompt for Claude
+SYSTEM:
+Generate a follow-up message from Selmen's Chief of Staff agent
+to a team member.
+
+Original task: "{task.description}"
+Original message sent: "{original_message.body}"
+Original message sent at: {original_message.created_at}
+Time since dispatch: {hours_since_dispatch} hours
+Nudge level: {nudge_level} (1 = soft, 2 = firm)
+
+Owner: {owner.full_name}
+Communication style: {owner.communication_style}
+Recent messages from owner: {recent_replies}
+
+Draft the nudge in Selmen's voice, in the owner's style.
+If level 1: friendly, low pressure, acknowledge they may be busy.
+If level 2: still friendly but explicit about timeline + ask for ETA.
+Never sound passive-aggressive.
+Never use guilt-trip language.
+
+Return JSON:
+{
+  "channel": "sms" | "email" (match original task channel),
+  "subject": null | "if email",
+  "body": "the nudge",
+  "reasoning": "why this approach"
+}
+
+3. Escalations
+3.1 What constitutes an escalation
+	•	Two nudges sent without satisfying response
+	•	Team member explicitly replied 'blocked' — immediate escalation
+	•	Hard deadline (due_at) passed without completion
+	•	Tier B draft has been sitting in Approvals tab for >24 hours
+	•	Important flagged email hasn't been addressed in 48 hours
+	•	A previously-acknowledged task hasn't progressed in N days where N depends on priority
+3.2 Escalation message to Selmen
+Pushed via SMS, also surfaced in Today tab and as a push notification. SMS format:
+ESCALATION
+[task title]
+Owner: [team member]
+Last contact: [time ago]
+[brief context — last 1-2 lines from thread]
+
+Recommended: [agent's suggestion]
+[link to PWA]
+3.3 Recommended action generation
+The agent suggests a next step based on the situation:
+Situation
+Suggested next action
+Team member silent past nudge 2
+Place a phone call. They may be in the field with no signal, or this needs a more direct conversation than text.
+Team member explicitly blocked
+Address the blocker directly. The agent surfaces the blocker text from their reply.
+Hard deadline passed
+Reassign or accept slip. Agent suggests a backup owner if responsibility-match exists.
+Tier B draft sitting in Approvals
+Review and approve, edit, or reject. Surfaces the draft directly.
+Flagged email unaddressed
+Reply, archive, delegate, or convert to task. One-tap actions presented.
+
+4. Today Tab — New 'Awaiting' Section
+Phase 4 adds a section to the Today tab between the daily brief and the to-do list.
+4.1 'Awaiting' section structure
+AWAITING                                         [count]
+  Tasks waiting on team
+    • Nick — tracking pixel update     2d, nudge 2 sent
+    • Orlando — trail check            1d, awaiting reply
+  Drafts pending your approval
+    • Reply to Brandon                 6h ago
+    • Reply to Karina                  3h ago
+  Flagged emails awaiting action
+    • From: AccountingFirm             1d ago
+  Escalations needing your attention
+    • Joan — inventory count           silent 3d
+4.2 Per-row tap behavior
+	•	Tap awaiting task → expands to show last messages, agent's notes, action buttons (call, send custom message, mark blocked, reassign)
+	•	Tap draft → opens Approvals view for that draft
+	•	Tap flagged email → opens Inbox view for that email
+	•	Tap escalation → opens dedicated escalation view with full thread context + recommended action
+4.3 Health indicator
+A summary line at the top of the Awaiting section: "3 items healthy, 2 items at risk, 1 escalation." The colors (green, yellow, red) match priority states. This becomes Selmen's at-a-glance pulse on what's in-flight.
+
+5. Email Chase Logic
+Phase 4 extends the chase loop to email.
+5.1 Outbound email reply tracking
+When the agent (or Selmen via Approvals) sends an email expecting a reply, a followups row is created with:
+	•	entity_type = 'email_thread'
+	•	expected_response_within = inferred from email content (e.g. "by EOD Friday" → that timestamp; otherwise default 72 hours)
+	•	Cadence: nudge 1 at expected_response_within, nudge 2 at +24h, escalation at +48h
+5.2 Email nudge generation
+Same prompt structure as SMS nudges, but acknowledges email context:
+Hi Brandon,
+
+Just wanted to circle back on the message I sent Tuesday
+about the lawyer intro. No rush — just making sure it
+didn't get buried.
+
+Thanks,
+Selmen
+5.3 Approvals tab nudges
+If a Tier B draft has been sitting in Approvals for >24 hours, the agent sends a self-nudge to Selmen via PWA push notification: "You have 3 drafts waiting more than 24 hours." Daily morning brief includes a count of pending approvals.
+5.4 Flagged email aging
+Important emails the agent flagged for Selmen's eyes age out. After 48 hours unaddressed, they escalate. The escalation prompts: "This was flagged 2 days ago. Want me to draft a reply, or should we just archive?"
+
+6. Working Hours & Timezone Handling
+6.1 Team member working hours
+Each team_members row stores working_hours as JSONB. Default if not specified: 8 AM - 8 PM, Monday-Saturday.
+// Example working_hours JSON
+{
+  "start": "08:00",
+  "end": "20:00",
+  "days": [1, 2, 3, 4, 5, 6],   // 0=Sun, 6=Sat
+  "timezone": "America/New_York"
+}
+6.2 Nudge scheduling rules
+	•	Compute scheduled_for timestamp from dispatched_at + cadence offset
+	•	If scheduled_for falls outside the owner's working hours, advance to the next working window's start time
+	•	If scheduled_for falls on a weekend day not in the owner's days array, advance to next valid day
+	•	Cap shift to maximum +18 hours — don't shift a Friday 11 PM nudge all the way to Monday 8 AM, that's too long
+6.3 Timezone special cases
+	•	Richard in Texas: timezone America/Chicago — nudges respect Central Time
+	•	Karina (realtor): respects her stated working hours, never weekends
+	•	Brandon: respects working hours but skews more lenient because he's a partner
+6.4 Selmen's escalations are timezone-respecting too
+Selmen has working hours configured in the principal table. Escalations during off-hours don't push SMS unless the priority is 'urgent'. Otherwise they queue and surface in the morning brief.
+
+7. Tech Decisions for This Phase
+Background job framework
+	•	BullMQ + Redis for the follow-up scheduler. Repeatable jobs at 5-minute intervals.
+	•	Alternative: n8n cron node for high-level orchestration, BullMQ for tight scheduling. Both can coexist.
+Followup table queries
+The hot query in Phase 4 runs every 5 minutes:
+SELECT * FROM followups
+WHERE status = 'pending'
+  AND scheduled_for <= NOW()
+ORDER BY scheduled_for ASC
+LIMIT 100;
+The index idx_followups_due (already specified in Document 02) handles this. With 1000s of rows, this query stays under 10ms.
+Working hours computation
+Implement as a utility function that takes (timestamp, working_hours) → adjusted_timestamp. Use a date library — date-fns-tz or luxon. Test the timezone math thoroughly; it's the source of bugs in any scheduling system.
+Claude usage
+	•	Nudge generation: claude-sonnet-4-6 — short, contextual, reuses style preferences
+	•	Escalation recommendation: claude-sonnet-4-6 with full thread context
+	•	Volume: If 30 tasks/week need nudges, that's ~60 Claude calls/week for nudges. Cost: ~$5/month additional.
+
+8. API Endpoints to Build
+8.1 Follow-up management
+GET    /api/followups                    // List for current view
+GET    /api/followups/upcoming           // Next 7 days
+POST   /api/followups/:id/cancel         // Manually cancel
+POST   /api/followups/:id/snooze         // Push to later
+PATCH  /api/tasks/:id/cadence            // Override default cadence on this task
+8.2 Escalations
+GET    /api/escalations                  // List open escalations
+POST   /api/escalations/:id/resolve      // Mark resolved with notes
+POST   /api/escalations/:id/dismiss      // Dismiss without action
+POST   /api/escalations/:id/take-action  // Trigger an action (call, message, reassign)
+8.3 Awaiting view
+GET    /api/today/awaiting               // Aggregated awaiting items
+GET    /api/today/awaiting/health        // Quick status: green/yellow/red counts
+
+9. Background Jobs
+9.1 Follow-up scheduler (every 5 min)
+Core job. Fetches due followups, generates nudge messages via Claude, sends via Twilio/Gmail, updates status.
+// Pseudocode
+async function processDueFollowups() {
+  const due = await db.select().from(followups)
+    .where(and(
+      eq(followups.status, 'pending'),
+      lte(followups.scheduled_for, new Date())
+    ))
+    .limit(100);
+
+  for (const f of due) {
+    if (f.nudge_level <= 2) {
+      await sendNudge(f);
+    } else {
+      await raiseEscalation(f);
+    }
+  }
+}
+9.2 Working-hours window check (every 1 min)
+Lightweight job that checks if any pending followups should be advanced because they fall outside working hours. Runs more frequently than the main scheduler so windowing decisions are timely.
+9.3 Stale draft sweep (every hour)
+Identifies email_drafts in pending_review status older than 24h, raises a self-nudge to Selmen. Older than 7 days → expire (per Phase 2).
+9.4 Daily chase summary (in morning brief)
+As part of the Phase 1 morning brief job, add an Awaiting section count and any escalations that emerged overnight.
+
+10. Acceptance Criteria
+#
+Acceptance criterion
+How to verify
+1
+Dispatching a normal-priority task creates 3 followups at +24h, +48h, +72h
+Dispatch a task, immediately query followups table, verify 3 rows with correct scheduled_for
+2
+Dispatching an urgent task creates followups at +4h, +8h, +12h
+Same verification, urgent task
+3
+Nudge 1 fires at the scheduled time and sends correct message
+Set up a task, advance system clock, verify nudge sent via Twilio (or shadow team SMS)
+4
+Nudge style matches owner's communication preference
+Send to Test-Nick (detailed) and Test-Orlando (terse), verify message styles
+5
+Nudge 1 firing within working hours is sent immediately
+Schedule nudge for 11 AM Tuesday (working), verify fires at 11 AM
+6
+Nudge scheduled outside working hours shifts to next window
+Schedule nudge for 11 PM, verify shifts to 8 AM next working day
+7
+Inbound 'got it' from team member satisfies pending nudges
+Send a task, have shadow team reply 'got it', verify all pending nudges marked satisfied
+8
+Inbound 'done' from team member completes task and cancels nudges
+Reply 'done', verify task status = complete, no future nudges
+9
+Inbound 'blocked' immediately escalates
+Reply 'cant do this because X', verify escalation created same minute
+10
+Two unanswered nudges trigger escalation, not a third nudge
+Don't reply to nudges 1 and 2. Verify nudge 3 is escalation, not another team-facing message
+11
+Escalation pushes SMS to Selmen
+Trigger escalation, verify SMS arrives within 1 minute
+12
+Escalation includes recommended action
+Inspect the escalation row's recommended_action — should be specific
+13
+Today tab Awaiting section renders correctly
+Open Today tab, verify 4 sub-sections present and populated
+14
+Awaiting section health indicator matches state
+Set up mixed states, verify the 'X healthy, Y at risk, Z escalated' line is correct
+15
+Tier B draft >24h triggers self-nudge to Selmen
+Manually age a draft to >24h, verify Selmen gets a push
+16
+Stale email drafts auto-expire at 7 days
+Age a draft to >7d, verify status = 'expired' and removed from Approvals
+17
+Email reply nudges fire correctly when recipient is silent
+Send agent-drafted email to test inbox, don't reply, verify nudge after 72h
+18
+Working hours respect timezone
+Test-Richard (Texas, Central Time): nudge scheduled for 11 PM ET should respect Central.
+19
+Manually snoozing a followup pushes it later
+Tap snooze on a followup, verify scheduled_for moves +24h
+20
+Manually cancelling a followup removes it from queue
+Cancel a followup, verify status = 'cancelled', not processed
+21
+Override cadence on a task is honored
+Set custom cadence on a task, verify followups respect override
+22
+Selmen replying on a task thread resets the chase clock
+Reply on a task as Selmen, verify next nudge re-scheduled relative to the new message
+
+11. Testing Plan
+11.1 Unit tests
+	•	Cadence calculation: every priority + nudge level combination
+	•	Working hours shift: edge cases (boundary times, day boundaries, timezone changes)
+	•	Nudge satisfaction logic: each reply category
+	•	Escalation trigger conditions
+	•	Stale draft expiry math
+11.2 Integration tests
+	•	Full task lifecycle: dispatch → nudge 1 → reply → nudge 2 → satisfy → complete
+	•	Escalation lifecycle: dispatch → nudge 1 → silence → nudge 2 → silence → escalation → SMS to Selmen
+	•	Email chase: draft → send → silence → nudge → reply → satisfy
+	•	Timezone: schedule nudge in 3 different timezones, verify correct working-hours math
+11.3 Behavior tests with shadow team
+	•	Run a 5-day staging test where shadow team responds with realistic patterns (some prompt, some slow, some silent). Verify the agent's chase behavior matches expectations.
+	•	Specifically test: Test-Brandon (partner) gets gentler escalation handling than Test-Joan (internal). Verify cadence respects partner_status.
+	•	Test the Fareharbor-style scenario: dispatch a multi-step task that depends on Test-Nick + Test-Orlando + Test-Tahir. Have one go silent. Verify escalation surfaces in time to prevent a fire.
+11.4 Adversarial tests
+	•	Team member replies multiple times in 30 seconds (fast back-and-forth) — verify no double-counted nudges
+	•	Team member replies after escalation already fired — verify task can recover gracefully
+	•	System clock skew: simulate a 30-minute clock jump — verify scheduler doesn't fire 50 nudges at once
+	•	Database connection lost mid-cycle — verify scheduler retries cleanly
+
+12. Dependencies & Prerequisites
+Before starting Phase 4
+	•	Phases 1, 2, 3 are complete and stable in production
+	•	BullMQ + Redis are running in all environments
+	•	Sentry is monitoring the new background jobs
+	•	Team members have working_hours and timezone fields populated (data backfill)
+	•	Selmen has principal.timezone and working_hours configured
+Schema additions
+Document 02 already covers followups and escalations tables. The only new work is making sure the working_hours JSONB on team_members is populated for all real members. Add a one-time migration that backfills defaults for any rows missing this.
+
+13. Risks & Mitigations
+Risk: Agent over-nudges and burns team trust
+Mitigation: Hard cap of 2 team-facing nudges per task. After that, escalation goes to Selmen, not more nudges to the team. Cadence respects working hours. Style is friendly, never passive-aggressive (verified in nudge prompt). If a team member ever expresses frustration with nudges, that signal can manually adjust their cadence preference.
+Risk: Team member responds informally and reply classifier misses it
+Mitigation: Reply classifier was tested in Phase 2. Edge cases ("k" for okay, "yup" for yes, emoji-only replies) are in the test fixture. If a reply is unclear, classifier returns 'unclear' and the agent keeps the chase clock running but doesn't escalate yet — surfaces in Today tab so Selmen can manually mark resolved.
+Risk: Timezone bugs cause off-hours messages
+Mitigation: Timezone math is the most-tested component of Phase 4. Use a battle-tested library (luxon or date-fns-tz). Set up a smoke test that runs hourly, verifying the next 5 scheduled nudges all fall within their owner's working hours.
+Risk: Escalation fires for trivial silence (someone is on vacation)
+Mitigation: Vacation/OOO support is post-Phase-4. For now, Selmen can manually mark a team member as 'on leave' which pauses chase on tasks owned by them. Phase 6 learning may detect patterns ("Joan tends to be slow on Sundays") and adjust automatically.
+Risk: System clock drift or job worker outage causes missed nudges
+Mitigation: Scheduler is idempotent — re-running it picks up missed work. Sentry alerts if BullMQ queue depth grows. If a worker is down for >15 minutes, alert via SMS to Selmen so he knows the agent is delayed.
+Risk: Selmen approves all his Approvals at once and all nudges fire simultaneously
+Mitigation: Approving 10 drafts at once enqueues 10 outbound sends, throttled by the rate limiter (1 SMS/sec via Twilio rate limit, 30 emails/min). Recipients receive within 30 seconds, not in a burst. The 10 followups are also created spaced out so future nudges don't fire as a burst either.
+
+14. The Fareharbor Test
+This phase has a specific success criterion beyond the acceptance table: the Fareharbor scenario must be preventable.
+During staging acceptance, run this test:
+	•	Brain-dump a multi-step migration project: "Need to migrate booking system to FareHarbor by end of month. Requires Nick to set up tracking, Orlando to update field signage, Tahir to handle reporting integration."
+	•	Phase 5 isn't built yet, so this stays as 3 separate tasks rather than a project
+	•	Have two of the three shadow team members respond and progress. Have the third (Test-Tahir) go silent.
+	•	Wait through the chase cycle — nudge 1 at 24h, nudge 2 at 48h
+	•	Verify escalation arrives in Selmen's morning brief on day 3 with a recommended action
+	•	Verify the silence couldn't have surprised Selmen — he saw it coming via the daily brief and the Today tab Awaiting section
+If this test passes, Phase 4 has solved the operational problem the agent was built for.
+
+15. Phase 4 Sign-Off Checklist
+	•	All acceptance criteria in Section 10 verified in staging
+	•	All Section 11 tests passed
+	•	Fareharbor test from Section 14 passed
+	•	Selmen has used Phase 4 in staging for at least 5 consecutive days
+	•	Background scheduler is healthy under load (100+ followups in queue)
+	•	Timezone math is correct for all 3 expected timezones (ET, CT, PT for any future expansion)
+	•	auto_followup_nudge_1 and auto_followup_nudge_2 flags are OFF in production at sign-off (will be enabled per progressive rollout)
+	•	Working hours data populated for all real team members
+	•	Documentation in /docs is up to date
+With Phases 1-4 complete, the agent has closed all four core operational loops: capture, dispatch, chase, briefing. The system can run a multi-million dollar business's day-to-day execution layer. Phase 5 adds project-level planning so multi-step initiatives like Fareharbor migrations get tracked structurally, not just through individual task chase. Phase 6 adds the learning loop that compounds value over time.

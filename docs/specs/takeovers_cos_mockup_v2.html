@@ -1,0 +1,2386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Takeovers Chief of Staff — Mockup v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,800&family=JetBrains+Mono:wght@400;500;600;700&family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ============ DESIGN TOKENS ============ */
+  :root {
+    --red: #DC2A2A;
+    --red-deep: #A8201F;
+    --red-soft: rgba(220, 42, 42, 0.12);
+    --bg: #0E0E0E;
+    --bg-1: #161616;
+    --bg-2: #1C1C1C;
+    --bg-3: #232323;
+    --line: #2A2A2A;
+    --line-2: #3A3A3A;
+    --ink: #F4F1EA;
+    --ink-2: #C9C5BD;
+    --ink-3: #8A8680;
+    --ink-4: #5A5754;
+    --green: #4ADE80;
+    --green-soft: rgba(74, 222, 128, 0.12);
+    --amber: #F5A524;
+    --amber-soft: rgba(245, 165, 36, 0.14);
+    --blue: #6BA4FF;
+    --blue-soft: rgba(107, 164, 255, 0.12);
+    --purple: #A78BFA;
+    --purple-soft: rgba(167, 139, 250, 0.12);
+    --display: 'Fraunces', Georgia, serif;
+    --sans: 'Inter Tight', -apple-system, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  .frame.mobile {
+    --bg: #FAFAF7;
+    --bg-1: #FFFFFF;
+    --bg-2: #F4F2EC;
+    --bg-3: #EAE7DF;
+    --line: #E2DFD7;
+    --line-2: #CFCBC1;
+    --ink: #161311;
+    --ink-2: #3A3633;
+    --ink-3: #6A655F;
+    --ink-4: #9C978F;
+    --red-soft: rgba(220, 42, 42, 0.08);
+    --green-soft: rgba(34, 139, 76, 0.10);
+    --green: #228B4C;
+    --amber: #C57A11;
+    --amber-soft: rgba(197, 122, 17, 0.10);
+    --blue: #2563CC;
+    --blue-soft: rgba(37, 99, 204, 0.08);
+    --purple: #7C5BD9;
+    --purple-soft: rgba(124, 91, 217, 0.10);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #07070A; min-height: 100vh; font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased; }
+
+  /* ============ CONTROL BAR ============ */
+  .controls {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(7,7,10,0.92); backdrop-filter: blur(20px);
+    border-bottom: 1px solid #1A1A1F;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px; font-family: var(--mono); font-size: 11px;
+  }
+  .controls .brand { display: flex; align-items: center; gap: 12px; color: #F4F1EA; }
+  .controls .brand .dot { width: 7px; height: 7px; border-radius: 50%; background: #DC2A2A; box-shadow: 0 0 12px rgba(220,42,42,0.8); }
+  .controls .brand b { font-weight: 700; letter-spacing: 0.02em; }
+  .controls .brand span { color: #5A5754; letter-spacing: 0.05em; text-transform: uppercase; }
+  .toggle { display: inline-flex; background: #161616; border: 1px solid #2A2A2A; border-radius: 999px; padding: 3px; gap: 0; }
+  .toggle button { background: transparent; border: 0; color: #8A8680; padding: 6px 18px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; border-radius: 999px; transition: 200ms; }
+  .toggle button.active { background: #DC2A2A; color: #fff; }
+
+  .stage { padding: 80px 40px 80px; display: flex; gap: 60px; justify-content: center; flex-wrap: wrap; }
+
+  .frame { background: var(--bg); color: var(--ink); font-family: var(--sans); border-radius: 14px; overflow: hidden; box-shadow: 0 60px 120px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04); transition: opacity 300ms; }
+
+  .frame.desktop { width: 1380px; max-width: calc(100vw - 80px); }
+  .frame.desktop .chrome { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: #1C1C1C; border-bottom: 1px solid #2A2A2A; }
+  .frame.desktop .chrome .dots { display: flex; gap: 7px; }
+  .frame.desktop .chrome .dots span { width: 11px; height: 11px; border-radius: 50%; background: #3A3A3A; }
+  .frame.desktop .chrome .url { background: #0E0E0E; border: 1px solid #2A2A2A; border-radius: 7px; padding: 5px 12px; font-family: var(--mono); font-size: 11px; color: #8A8680; flex: 1; max-width: 460px; margin-left: 16px; }
+  .frame.desktop .chrome .url b { color: #C9C5BD; }
+
+  .frame.mobile { width: 380px; border-radius: 36px; padding: 8px; background: #0E0E0E; }
+  .frame.mobile .phone-screen { background: var(--bg); border-radius: 28px; overflow: hidden; height: 780px; display: flex; flex-direction: column; position: relative; }
+  .frame.mobile .notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 110px; height: 26px; background: #0E0E0E; border-radius: 0 0 18px 18px; z-index: 50; }
+  .frame.mobile .status-bar { padding: 10px 24px 6px; display: flex; justify-content: space-between; align-items: center; font-family: var(--mono); font-size: 11px; color: var(--ink); font-weight: 600; }
+  .frame.mobile .status-bar .right { display: flex; gap: 5px; align-items: center; }
+
+  /* ============ DESKTOP LAYOUT ============ */
+  .app-grid { display: grid; grid-template-columns: 220px 1fr; height: 820px; }
+
+  .sidebar { background: var(--bg-1); border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+  .sidebar-head { padding: 22px 20px 18px; border-bottom: 1px solid var(--line); }
+  .sidebar-head .logo { font-family: var(--display); font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+  .sidebar-head .logo b { color: var(--red); }
+  .sidebar-head .greet { margin-top: 10px; font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; }
+  .sidebar-head .name { font-size: 14px; font-weight: 600; color: var(--ink); margin-top: 2px; }
+  .sidebar-nav { padding: 14px 8px; flex: 1; }
+  .nav-section { font-family: var(--mono); font-size: 9px; color: var(--ink-4); letter-spacing: 0.12em; text-transform: uppercase; padding: 14px 14px 8px; }
+  .nav-item { display: flex; align-items: center; gap: 11px; padding: 9px 12px; border-radius: 7px; cursor: pointer; color: var(--ink-2); font-size: 13px; font-weight: 500; transition: 150ms; position: relative; }
+  .nav-item:hover { background: var(--bg-2); color: var(--ink); }
+  .nav-item.active { background: var(--bg-2); color: var(--ink); }
+  .nav-item.active::before { content: ''; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 2px; background: var(--red); border-radius: 2px; }
+  .nav-item .icon { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.7; }
+  .nav-item.active .icon { opacity: 1; }
+  .nav-item .badge { margin-left: auto; background: var(--red); color: white; font-family: var(--mono); font-size: 9px; padding: 2px 6px; border-radius: 999px; font-weight: 700; }
+  .nav-item .badge.muted { background: var(--bg-3); color: var(--ink-2); }
+  .sidebar-foot { padding: 14px 16px; border-top: 1px solid var(--line); }
+  .sys-stat { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+  .sys-stat .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* MAIN PANEL */
+  .main { background: var(--bg); overflow-y: auto; }
+  .main::-webkit-scrollbar { width: 8px; }
+  .main::-webkit-scrollbar-track { background: transparent; }
+  .main::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+  .topbar { display: flex; justify-content: space-between; align-items: center; padding: 16px 32px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: rgba(14,14,14,0.92); backdrop-filter: blur(20px); z-index: 5; }
+  .crumb { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; }
+  .crumb b { color: var(--ink); font-weight: 600; }
+  .topbar-actions { display: flex; gap: 10px; align-items: center; }
+  .iconbtn { width: 32px; height: 32px; border-radius: 7px; background: var(--bg-2); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; color: var(--ink-2); cursor: pointer; transition: 150ms; }
+  .iconbtn:hover { background: var(--bg-3); color: var(--ink); }
+  .pill-btn { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; padding: 7px 13px; border-radius: 7px; background: var(--bg-2); border: 1px solid var(--line); color: var(--ink-2); cursor: pointer; }
+  .pill-btn.primary { background: var(--red); border-color: var(--red); color: white; }
+  .pill-btn:hover { background: var(--bg-3); }
+  .pill-btn.primary:hover { background: var(--red-deep); }
+
+  .pane { display: none; padding: 24px 32px 60px; }
+  .pane.active { display: block; }
+  .pane-head { margin-bottom: 24px; }
+  .pane-head h1 { font-family: var(--display); font-weight: 700; font-size: 38px; letter-spacing: -0.02em; line-height: 1.05; }
+  .pane-head h1 em { font-style: italic; color: var(--red); }
+  .pane-head .sub { color: var(--ink-3); font-size: 13px; margin-top: 6px; }
+
+  /* ============ TODAY — RESTRUCTURED ============ */
+  .today-grid-v2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+
+  /* SCHEDULE COLUMN */
+  .schedule-card { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .schedule-head { padding: 18px 22px 14px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: flex-start; }
+  .schedule-head .lbl { font-family: var(--mono); font-size: 10px; color: var(--red); text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600; }
+  .schedule-head .lbl::before { content: ''; display: inline-block; width: 14px; height: 1px; background: var(--red); margin-right: 8px; vertical-align: middle; }
+  .schedule-head h2 { font-family: var(--display); font-size: 22px; font-weight: 600; line-height: 1.2; margin-top: 8px; letter-spacing: -0.01em; }
+  .schedule-head .sub { font-size: 12px; color: var(--ink-3); margin-top: 4px; }
+  .schedule-head .meta-r { text-align: right; font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .schedule-head .meta-r b { color: var(--ink); font-family: var(--display); font-size: 16px; font-weight: 600; display: block; margin-bottom: 1px; }
+
+  .schedule-body { padding: 14px 0; position: relative; }
+
+  /* schedule blocks */
+  .sblock { display: grid; grid-template-columns: 70px 1fr; padding: 10px 22px 10px 22px; gap: 14px; position: relative; }
+  .sblock + .sblock { border-top: 1px solid var(--line); }
+  .sblock .timecol { font-family: var(--mono); font-size: 11px; color: var(--ink-3); padding-top: 2px; }
+  .sblock .timecol b { color: var(--ink); display: block; font-size: 13px; font-weight: 600; font-family: var(--display); letter-spacing: -0.01em; }
+  .sblock .timecol .dur { color: var(--ink-4); font-size: 10px; margin-top: 2px; }
+  .sblock .content { display: flex; gap: 10px; align-items: flex-start; }
+  .sblock .marker { width: 4px; align-self: stretch; border-radius: 2px; background: var(--ink-4); flex-shrink: 0; margin-top: 3px; }
+  .sblock.fixed .marker { background: var(--red); }
+  .sblock.flex .marker { background: var(--blue); }
+  .sblock.deep .marker { background: var(--purple); }
+  .sblock.now .marker { background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+  .sblock .body-c { flex: 1; min-width: 0; }
+  .sblock .ttl { font-size: 13.5px; font-weight: 600; line-height: 1.35; color: var(--ink); }
+  .sblock.done .ttl { text-decoration: line-through; color: var(--ink-3); }
+  .sblock .desc { font-size: 12px; color: var(--ink-3); margin-top: 3px; line-height: 1.45; }
+  .sblock .tags { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  .sblock.now .ttl::before { content: '● '; color: var(--green); }
+
+  .schedule-foot { padding: 14px 22px; background: var(--bg-2); border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+  .schedule-foot .info { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .schedule-foot .info b { color: var(--ink); }
+  .schedule-foot .actions { display: flex; gap: 8px; }
+
+  /* RIGHT COLUMN */
+  .brief-card { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; padding: 22px 24px; }
+  .brief-card .label { font-family: var(--mono); font-size: 10px; color: var(--red); text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600; }
+  .brief-card .label::before { content: ''; display: inline-block; width: 14px; height: 1px; background: var(--red); margin-right: 8px; vertical-align: middle; }
+  .brief-card h2 { font-family: var(--display); font-size: 22px; font-weight: 600; line-height: 1.25; margin-top: 12px; letter-spacing: -0.01em; }
+  .brief-meta { display: flex; gap: 18px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .brief-meta b { color: var(--ink); font-weight: 600; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
+  .stat { background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .stat .num { font-family: var(--display); font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
+  .stat .num.red { color: var(--red); }
+  .stat .num.amber { color: var(--amber); }
+  .stat .num.green { color: var(--green); }
+  .stat .lbl { font-family: var(--mono); font-size: 9px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 6px; }
+
+  .section-title { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; margin-top: 22px; }
+  .section-title h3 { font-family: var(--display); font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+  .section-title .count { font-family: var(--mono); font-size: 10px; color: var(--ink-3); padding: 2px 7px; background: var(--bg-2); border-radius: 999px; }
+  .section-title .more { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--ink-3); cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .tag { font-family: var(--mono); font-size: 9px; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  .tag.red { background: var(--red-soft); color: var(--red); }
+  .tag.amber { background: var(--amber-soft); color: var(--amber); }
+  .tag.green { background: var(--green-soft); color: var(--green); }
+  .tag.blue { background: var(--blue-soft); color: var(--blue); }
+  .tag.purple { background: var(--purple-soft); color: var(--purple); }
+  .tag.gray { background: var(--bg-3); color: var(--ink-2); }
+
+  /* AWAITING */
+  .awaiting-list { display: flex; flex-direction: column; gap: 8px; }
+  .awaiting { background: var(--bg-1); border: 1px solid var(--line); border-radius: 8px; padding: 13px 15px; display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
+  .awaiting.elevated { border-left: 3px solid var(--amber); }
+  .awaiting.critical { border-left: 3px solid var(--red); background: linear-gradient(90deg, var(--red-soft), transparent 30%); }
+  .awaiting .who { font-size: 13px; font-weight: 600; }
+  .awaiting .what { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+  .awaiting .age { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-align: right; }
+  .awaiting .age b { color: var(--ink); display: block; font-size: 12px; }
+
+  /* PROJECT MINI */
+  .proj-card { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; cursor: pointer; transition: 150ms; margin-bottom: 8px; }
+  .proj-card:hover { border-color: var(--line-2); }
+  .proj-card.elevated { border-left: 3px solid var(--amber); }
+  .proj-card.critical { border-left: 3px solid var(--red); }
+  .proj-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .proj-name { font-family: var(--display); font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+  .proj-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-3); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .proj-meta b { color: var(--ink); font-weight: 600; }
+  .proj-bar { height: 4px; background: var(--bg-3); border-radius: 2px; overflow: hidden; }
+  .proj-bar .fill { height: 100%; background: var(--ink); transition: width 600ms; }
+  .proj-card.critical .proj-bar .fill { background: var(--red); }
+  .proj-card.elevated .proj-bar .fill { background: var(--amber); }
+  .proj-bar-meta { display: flex; justify-content: space-between; margin-top: 6px; font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+
+  /* ============ TALK TAB ============ */
+  .talk-layout { display: grid; grid-template-columns: 1fr 320px; gap: 22px; height: 700px; }
+  .talk-main { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; overflow: hidden; }
+  .talk-msgs { flex: 1; padding: 22px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; }
+  .talk-msgs::-webkit-scrollbar { width: 6px; }
+  .talk-msgs::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
+  .msg { max-width: 85%; }
+  .msg.user { align-self: flex-end; }
+  .msg.user .bubble { background: var(--red); color: white; border-radius: 10px 10px 2px 10px; padding: 10px 14px; font-size: 13.5px; line-height: 1.45; }
+  .msg.agent .bubble { background: var(--bg-2); border: 1px solid var(--line); color: var(--ink); border-radius: 10px 10px 10px 2px; padding: 12px 16px; font-size: 13.5px; line-height: 1.5; }
+  .msg .ts { font-family: var(--mono); font-size: 9px; color: var(--ink-4); margin-top: 4px; }
+  .msg.user .ts { text-align: right; }
+
+  .talk-card { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; margin-top: 10px; overflow: hidden; }
+  .talk-card .head { padding: 9px 12px; background: var(--bg-2); border-bottom: 1px solid var(--line); display: flex; gap: 8px; align-items: center; font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; }
+  .talk-card .head b { color: var(--ink); font-weight: 700; }
+  .talk-card .body { padding: 12px 14px; font-size: 12.5px; line-height: 1.55; color: var(--ink-2); }
+  .talk-card .actions { padding: 10px 12px; border-top: 1px solid var(--line); display: flex; gap: 8px; }
+  .talk-card .mini-btn { font-family: var(--mono); font-size: 10px; padding: 6px 10px; border-radius: 6px; background: var(--bg-2); border: 1px solid var(--line); color: var(--ink-2); cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; }
+  .talk-card .mini-btn.primary { background: var(--red); border-color: var(--red); color: white; }
+
+  .talk-input-wrap { padding: 16px 20px; border-top: 1px solid var(--line); background: var(--bg-1); }
+  .talk-input { display: flex; gap: 12px; align-items: center; background: var(--bg-2); border: 1px solid var(--line); border-radius: 30px; padding: 6px 6px 6px 18px; }
+  .talk-input input { flex: 1; background: transparent; border: 0; color: var(--ink); font-family: var(--sans); font-size: 14px; outline: none; padding: 8px 0; }
+  .talk-input input::placeholder { color: var(--ink-4); }
+  .voice-btn { width: 38px; height: 38px; border-radius: 50%; background: var(--red); border: 0; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 150ms; }
+  .voice-btn:hover { background: var(--red-deep); transform: scale(1.05); }
+
+  .talk-context { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
+  .talk-context h4 { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; }
+  .ctx-item { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+  .ctx-item:last-child { border-bottom: 0; }
+  .ctx-item .lbl { font-family: var(--mono); font-size: 9px; color: var(--ink-4); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px; }
+  .ctx-item .val { color: var(--ink); font-weight: 500; }
+
+  /* ============ APPROVALS — WITH LINKED CARDS ============ */
+  .approval-card { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; padding: 18px 22px; margin-bottom: 14px; }
+
+  /* LINKED PAIR */
+  .approval-card.linked { border: 1px solid var(--purple); position: relative; padding: 0; overflow: hidden; }
+  .linked-banner { background: linear-gradient(90deg, var(--purple-soft), transparent 70%); padding: 10px 22px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+  .linked-banner .icon { width: 24px; height: 24px; border-radius: 6px; background: var(--purple-soft); color: var(--purple); display: flex; align-items: center; justify-content: center; }
+  .linked-banner .text { font-family: var(--mono); font-size: 10px; color: var(--purple); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; }
+  .linked-banner .text b { color: var(--ink); font-weight: 700; }
+  .linked-banner .help { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+  .linked-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .linked-side { padding: 18px 22px; }
+  .linked-side + .linked-side { border-left: 1px solid var(--line); }
+  .linked-side-head { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
+  .linked-side-head .step { background: var(--purple); color: white; width: 16px; height: 16px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; }
+  .linked-side h4 { font-size: 14px; font-weight: 600; line-height: 1.3; margin-bottom: 4px; }
+  .linked-side .recip { font-size: 11.5px; color: var(--ink-3); margin-bottom: 10px; }
+  .linked-side .recip b { color: var(--ink); }
+  .linked-content { background: var(--bg-2); border-left: 2px solid var(--line-2); padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 12.5px; line-height: 1.55; color: var(--ink-2); white-space: pre-wrap; max-height: 180px; overflow-y: auto; }
+  .linked-content::-webkit-scrollbar { width: 4px; }
+  .linked-content::-webkit-scrollbar-thumb { background: var(--line-2); }
+  .linked-actions { background: var(--bg-2); padding: 14px 22px; border-top: 1px solid var(--line); display: flex; gap: 10px; align-items: center; }
+  .linked-actions .reasoning { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; }
+
+  /* SOLO APPROVAL */
+  .approval-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .approval-meta-l { flex: 1; }
+  .approval-meta-l .channel { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; }
+  .approval-meta-l h4 { font-size: 16px; font-weight: 600; margin-top: 4px; }
+  .approval-meta-l .recip { font-size: 12px; color: var(--ink-3); margin-top: 3px; }
+  .approval-meta-l .recip b { color: var(--ink); }
+  .tier-badge { font-family: var(--mono); font-size: 9px; padding: 4px 9px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; background: var(--amber-soft); color: var(--amber); }
+  .draft-content { background: var(--bg-2); border-left: 2px solid var(--line-2); padding: 14px 16px; border-radius: 0 6px 6px 0; font-size: 13px; line-height: 1.55; color: var(--ink-2); white-space: pre-wrap; }
+  .draft-content .sig { color: var(--ink-3); margin-top: 8px; display: block; }
+  .approval-actions { display: flex; gap: 10px; margin-top: 16px; align-items: center; }
+  .approval-actions .reasoning { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+
+  /* ============ TEAM ============ */
+  .team-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .person-card { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; padding: 18px; transition: 150ms; cursor: pointer; }
+  .person-card:hover { border-color: var(--line-2); transform: translateY(-1px); }
+  .person-head { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
+  .avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--bg-3); display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 600; font-size: 14px; color: var(--ink); flex-shrink: 0; }
+  .avatar.red { background: var(--red); color: white; }
+  .avatar.green { background: var(--green); color: var(--bg); }
+  .avatar.blue { background: var(--blue); color: var(--bg); }
+  .avatar.amber { background: var(--amber); color: var(--bg); }
+  .avatar.purple { background: var(--purple); color: var(--bg); }
+  .avatar.lg { width: 64px; height: 64px; font-size: 20px; }
+  .person-name { font-size: 14px; font-weight: 600; }
+  .person-role { font-size: 11.5px; color: var(--ink-3); margin-top: 1px; }
+  .person-stats { display: flex; gap: 14px; padding: 10px 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .person-stats div { display: flex; flex-direction: column; gap: 2px; }
+  .person-stats b { font-family: var(--display); font-size: 18px; color: var(--ink); font-weight: 600; }
+  .person-style { padding-top: 10px; border-top: 1px solid var(--line); margin-top: 10px; }
+  .person-style .lbl { font-family: var(--mono); font-size: 9px; color: var(--ink-4); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .person-style .val { font-size: 12px; color: var(--ink-2); line-height: 1.45; font-style: italic; }
+
+  /* TEAM DETAIL */
+  .person-detail { background: var(--bg-1); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .person-detail-hero { padding: 28px 32px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: center; }
+  .person-detail-hero .name { font-family: var(--display); font-size: 28px; font-weight: 600; letter-spacing: -0.01em; }
+  .person-detail-hero .role { font-size: 13px; color: var(--ink-3); margin-top: 3px; }
+  .person-detail-hero .ch-pref { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 6px; }
+  .person-detail-hero .ch-pref b { color: var(--ink); }
+  .person-detail-hero .actions { display: flex; gap: 8px; }
+
+  .person-detail-stats { display: grid; grid-template-columns: repeat(5, 1fr); border-bottom: 1px solid var(--line); }
+  .pds-cell { padding: 16px 22px; border-right: 1px solid var(--line); }
+  .pds-cell:last-child { border-right: 0; }
+  .pds-cell .num { font-family: var(--display); font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
+  .pds-cell .num.red { color: var(--red); }
+  .pds-cell .num.amber { color: var(--amber); }
+  .pds-cell .lbl { font-family: var(--mono); font-size: 9px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 6px; }
+
+  .person-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .pdg-section { padding: 22px 28px; border-right: 1px solid var(--line); }
+  .pdg-section:last-child { border-right: 0; }
+  .pdg-title { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 14px; }
+  .resp-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+  .resp-pill { font-size: 12px; padding: 5px 11px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 999px; color: var(--ink-2); }
+  .style-block { background: var(--bg-2); border-radius: 8px; padding: 14px; font-size: 13px; line-height: 1.55; color: var(--ink-2); font-style: italic; border-left: 2px solid var(--line-2); }
+  .recent-task { padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .recent-task:last-child { border-bottom: 0; }
+  .recent-task .ttl { color: var(--ink); font-weight: 500; }
+  .recent-task .meta { font-family: var(--mono); font-size: 10px; color: var(--ink-3); margin-top: 3px; }
+
+  /* ============ PROJECT DETAIL ============ */
+  .project-detail { display: grid; grid-template-columns: 1fr 320px; gap: 22px; }
+  .pd-main { background: var(--bg-1); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .pd-hero { padding: 24px 28px; border-bottom: 1px solid var(--line); }
+  .pd-back { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; margin-bottom: 12px; display: inline-block; }
+  .pd-back:hover { color: var(--ink); }
+  .pd-hero h2 { font-family: var(--display); font-size: 32px; font-weight: 700; letter-spacing: -0.02em; }
+  .pd-hero .desc { color: var(--ink-2); font-size: 13px; margin-top: 6px; line-height: 1.55; max-width: 580px; }
+  .pd-hero-meta { display: flex; gap: 24px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .pd-hero-meta b { color: var(--ink); display: block; font-family: var(--display); font-size: 16px; font-weight: 600; margin-top: 2px; }
+  .pd-hero-meta .crit b { color: var(--red); }
+  .pd-progress { padding: 16px 28px; border-bottom: 1px solid var(--line); }
+  .pd-progress-bar { height: 6px; background: var(--bg-3); border-radius: 3px; overflow: hidden; }
+  .pd-progress-bar .fill { height: 100%; background: var(--red); }
+  .pd-progress-meta { display: flex; justify-content: space-between; margin-top: 8px; font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .pd-progress-meta b { color: var(--ink); }
+
+  .pd-recommendation { margin: 16px 28px; padding: 14px 18px; background: linear-gradient(90deg, var(--red-soft), transparent 60%); border-left: 3px solid var(--red); border-radius: 0 8px 8px 0; }
+  .pd-recommendation .lbl { font-family: var(--mono); font-size: 10px; color: var(--red); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
+  .pd-recommendation .body { font-size: 13px; color: var(--ink); margin-top: 4px; line-height: 1.5; }
+
+  .pd-milestones { padding: 0 28px 24px; }
+  .pd-milestones .h { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; margin: 18px 0 10px; }
+
+  .ms { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 8px; display: grid; grid-template-columns: 28px 1fr auto; gap: 14px; align-items: center; }
+  .ms .seq { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--ink-4); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--ink-3); }
+  .ms.complete .seq { background: var(--green); border-color: var(--green); color: var(--bg); }
+  .ms.complete .seq::after { content: '✓'; }
+  .ms.complete .seq span { display: none; }
+  .ms.in-progress .seq { border-color: var(--blue); color: var(--blue); }
+  .ms.overdue .seq { border-color: var(--red); color: var(--red); }
+  .ms.blocked .seq { border-color: var(--amber); color: var(--amber); }
+  .ms.complete .ttl { text-decoration: line-through; color: var(--ink-3); }
+  .ms .ttl { font-size: 13.5px; font-weight: 600; }
+  .ms .meta { font-family: var(--mono); font-size: 10px; color: var(--ink-3); margin-top: 3px; }
+  .ms .meta b { color: var(--ink); }
+  .ms .meta .blocked-on { color: var(--amber); }
+  .ms .right { text-align: right; }
+
+  .pd-side { display: flex; flex-direction: column; gap: 14px; }
+  .pd-side-card { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
+  .pd-side-card h4 { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; }
+  .obs-item { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }
+  .obs-item:last-child { border-bottom: 0; }
+  .obs-item .ts { font-family: var(--mono); font-size: 10px; color: var(--ink-4); display: block; margin-bottom: 3px; }
+  .activity-item { padding: 8px 0; font-size: 12px; color: var(--ink-2); border-bottom: 1px solid var(--line); }
+  .activity-item:last-child { border-bottom: 0; }
+  .activity-item .ts { font-family: var(--mono); font-size: 10px; color: var(--ink-4); }
+  .activity-item b { color: var(--ink); }
+
+  /* ============ INBOX ============ */
+  .inbox-grid { display: grid; grid-template-columns: 280px 1fr; gap: 0; height: 720px; background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .acct-list { background: var(--bg-2); border-right: 1px solid var(--line); padding: 8px; }
+  .acct { padding: 11px 12px; border-radius: 7px; cursor: pointer; margin-bottom: 4px; }
+  .acct:hover { background: var(--bg-3); }
+  .acct.active { background: var(--bg); }
+  .acct .name { font-size: 12px; font-weight: 600; color: var(--ink); }
+  .acct .name.locked::after { content: ' 🔒'; }
+  .acct .stat { font-family: var(--mono); font-size: 10px; color: var(--ink-3); margin-top: 3px; }
+  .acct .stat .red { color: var(--red); }
+  .email-list { overflow-y: auto; padding: 4px 0; }
+  .email-row { padding: 14px 22px; border-bottom: 1px solid var(--line); cursor: pointer; transition: 100ms; display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: start; }
+  .email-row:hover { background: var(--bg-2); }
+  .email-row.unread { background: var(--bg-1); }
+  .email-status { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; }
+  .email-status.draft { background: var(--amber); }
+  .email-status.auto { background: var(--green); }
+  .email-status.queued { background: var(--blue); }
+  .email-status.archived { background: var(--ink-4); }
+  .email-status.linked { background: var(--purple); box-shadow: 0 0 0 3px var(--purple-soft); }
+  .email-from { font-size: 13px; font-weight: 600; }
+  .email-subj { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+  .email-snippet { font-size: 11.5px; color: var(--ink-3); margin-top: 3px; line-height: 1.4; }
+  .email-time { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+  .email-row .badges { display: flex; gap: 5px; margin-top: 5px; }
+
+  /* ============ INSIGHTS ============ */
+  .insight-tabs { display: flex; gap: 6px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .ins-tab { font-family: var(--mono); font-size: 10px; padding: 7px 14px; border-radius: 7px; background: var(--bg-2); border: 1px solid var(--line); color: var(--ink-3); cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; }
+  .ins-tab.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  .insight-card { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; padding: 20px 22px; margin-bottom: 12px; }
+  .insight-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+  .insight-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--red-soft); color: var(--red); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .insight-icon.green { background: var(--green-soft); color: var(--green); }
+  .insight-icon.amber { background: var(--amber-soft); color: var(--amber); }
+  .insight-icon.blue { background: var(--blue-soft); color: var(--blue); }
+  .insight-meta-r { flex: 1; }
+  .insight-type { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; }
+  .insight-title { font-size: 15px; font-weight: 600; margin-top: 3px; line-height: 1.3; }
+  .insight-body { color: var(--ink-2); font-size: 13px; line-height: 1.55; padding: 4px 0 14px 44px; }
+  .insight-evidence { background: var(--bg-2); border-radius: 6px; padding: 10px 14px; margin: 10px 0 14px 44px; font-family: var(--mono); font-size: 11px; color: var(--ink-3); line-height: 1.5; }
+  .insight-evidence b { color: var(--ink-2); }
+  .insight-actions { padding-left: 44px; display: flex; gap: 8px; }
+
+  /* SETTINGS */
+  .settings-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .settings-card { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; padding: 22px 24px; }
+  .settings-card h3 { font-family: var(--display); font-size: 18px; font-weight: 600; margin-bottom: 4px; letter-spacing: -0.01em; }
+  .settings-card .desc { font-size: 12.5px; color: var(--ink-3); margin-bottom: 18px; line-height: 1.5; }
+  .setting-row { padding: 12px 0; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .setting-row:first-of-type { border-top: 0; padding-top: 0; }
+  .setting-row .lbl { font-size: 13px; font-weight: 500; }
+  .setting-row .sub { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+  .setting-row .val { font-family: var(--mono); font-size: 11px; color: var(--ink); }
+  .toggle-sw { width: 36px; height: 20px; background: var(--bg-3); border-radius: 999px; position: relative; cursor: pointer; }
+  .toggle-sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--ink-3); transition: 200ms; }
+  .toggle-sw.on { background: var(--green); }
+  .toggle-sw.on::after { left: 18px; background: white; }
+  .select-pill { font-family: var(--mono); font-size: 10px; padding: 5px 10px; border-radius: 6px; background: var(--bg-2); border: 1px solid var(--line); color: var(--ink-2); cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* ============ MOBILE ============ */
+  .frame.mobile .phone-app { flex: 1; overflow-y: auto; padding-bottom: 80px; }
+  .phone-app::-webkit-scrollbar { display: none; }
+  .frame.mobile .phone-app { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .m-header { padding: 14px 22px 10px; display: flex; justify-content: space-between; align-items: center; }
+  .m-header h1 { font-family: var(--display); font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+  .m-header .icons { display: flex; gap: 10px; }
+  .m-iconbtn { width: 34px; height: 34px; border-radius: 8px; background: var(--bg-1); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; }
+
+  .m-greet { padding: 0 22px 14px; }
+  .m-greet .day { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; }
+  .m-greet .name { font-family: var(--display); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin-top: 4px; }
+
+  /* MOBILE SCHEDULE */
+  .m-schedule { margin: 0 22px 18px; padding: 16px 18px; background: var(--bg-1); border: 1px solid var(--line); border-radius: 12px; }
+  .m-schedule .head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .m-schedule .lbl { font-family: var(--mono); font-size: 10px; color: var(--red); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; }
+  .m-schedule .lbl::before { content: ''; display: inline-block; width: 14px; height: 1px; background: var(--red); margin-right: 8px; vertical-align: middle; }
+  .m-schedule h2 { font-family: var(--display); font-size: 16px; font-weight: 600; margin-top: 6px; line-height: 1.35; letter-spacing: -0.01em; }
+  .m-schedule .meta-r { text-align: right; font-family: var(--mono); font-size: 9px; color: var(--ink-3); text-transform: uppercase; }
+  .m-schedule .meta-r b { color: var(--ink); display: block; font-family: var(--display); font-size: 14px; font-weight: 600; }
+
+  .m-sblock { display: grid; grid-template-columns: 56px 1fr; padding: 8px 0; border-top: 1px solid var(--line); gap: 10px; }
+  .m-sblock .timecol { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+  .m-sblock .timecol b { color: var(--ink); display: block; font-family: var(--display); font-size: 12px; font-weight: 600; }
+  .m-sblock .timecol .dur { color: var(--ink-4); font-size: 9px; margin-top: 1px; }
+  .m-sblock .body-c { display: flex; gap: 8px; }
+  .m-sblock .marker { width: 3px; align-self: stretch; border-radius: 2px; background: var(--ink-4); flex-shrink: 0; margin-top: 2px; }
+  .m-sblock.fixed .marker { background: var(--red); }
+  .m-sblock.flex .marker { background: var(--blue); }
+  .m-sblock.deep .marker { background: var(--purple); }
+  .m-sblock.now .marker { background: var(--green); box-shadow: 0 0 0 2px var(--green-soft); }
+  .m-sblock .ttl { font-size: 12px; font-weight: 600; line-height: 1.35; }
+  .m-sblock.now .ttl::before { content: '● '; color: var(--green); }
+  .m-sblock .desc { font-size: 11px; color: var(--ink-3); margin-top: 2px; line-height: 1.4; }
+
+  .m-brief { margin: 0 22px 18px; padding: 16px 18px; background: var(--bg-1); border: 1px solid var(--line); border-radius: 12px; }
+  .m-brief .lbl { font-family: var(--mono); font-size: 10px; color: var(--red); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; }
+  .m-brief .lbl::before { content: ''; display: inline-block; width: 14px; height: 1px; background: var(--red); margin-right: 8px; vertical-align: middle; }
+  .m-brief h2 { font-family: var(--display); font-size: 16px; font-weight: 600; line-height: 1.35; margin-top: 8px; letter-spacing: -0.01em; }
+  .m-brief .meta { display: flex; gap: 14px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .m-brief .meta b { color: var(--ink); display: block; font-family: var(--display); font-size: 14px; font-weight: 600; margin-bottom: 1px; }
+
+  .m-section-title { padding: 6px 22px 10px; display: flex; justify-content: space-between; align-items: center; }
+  .m-section-title h3 { font-family: var(--display); font-size: 16px; font-weight: 600; }
+  .m-section-title .more { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .m-list { padding: 0 22px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+  .m-task { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; padding: 13px 14px; display: grid; grid-template-columns: 18px 1fr; gap: 11px; align-items: start; }
+  .m-task .check { width: 16px; height: 16px; border: 1.5px solid var(--ink-4); border-radius: 4px; margin-top: 1px; }
+  .m-task .ttl { font-size: 13px; font-weight: 500; line-height: 1.35; }
+  .m-task .meta { display: flex; gap: 10px; margin-top: 4px; font-family: var(--mono); font-size: 10px; color: var(--ink-3); flex-wrap: wrap; }
+  .m-task .meta .who { color: var(--ink-2); }
+  .m-task .meta .who::before { content: '@'; color: var(--ink-4); }
+
+  .m-awaiting { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .m-awaiting.elevated { border-left: 3px solid var(--amber); }
+  .m-awaiting.critical { border-left: 3px solid var(--red); }
+  .m-aw-row { display: flex; justify-content: space-between; align-items: flex-start; }
+  .m-aw-row .who { font-size: 13px; font-weight: 600; }
+  .m-aw-row .what { font-size: 12px; color: var(--ink-3); margin-top: 2px; line-height: 1.4; }
+  .m-aw-row .age { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-align: right; flex-shrink: 0; margin-left: 10px; }
+  .m-aw-row .age b { color: var(--ink); display: block; font-size: 12px; }
+
+  .m-talk { display: flex; flex-direction: column; height: 100%; }
+  .m-msgs { flex: 1; padding: 10px 18px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+  .m-msg { max-width: 85%; }
+  .m-msg.user { align-self: flex-end; }
+  .m-msg.user .bubble { background: var(--red); color: white; border-radius: 14px 14px 4px 14px; padding: 9px 13px; font-size: 13.5px; line-height: 1.45; }
+  .m-msg.agent .bubble { background: var(--bg-1); border: 1px solid var(--line); border-radius: 14px 14px 14px 4px; padding: 11px 14px; font-size: 13.5px; line-height: 1.5; color: var(--ink); }
+  .m-msg .ts { font-family: var(--mono); font-size: 9px; color: var(--ink-4); margin-top: 4px; }
+  .m-msg.user .ts { text-align: right; }
+  .m-talk-input-wrap { padding: 10px 18px 14px; }
+
+  .m-bottom { position: absolute; bottom: 0; left: 0; right: 0; background: var(--bg-1); border-top: 1px solid var(--line); padding: 8px 12px 24px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+  .m-tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px; border-radius: 8px; cursor: pointer; color: var(--ink-3); font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+  .m-tab.active { color: var(--red); }
+  .m-tab.center { background: var(--red); color: white; transform: translateY(-12px); width: 56px; height: 56px; border-radius: 50%; align-self: center; justify-self: center; padding: 0; box-shadow: 0 6px 16px rgba(220,42,42,0.4); }
+  .m-tab.center span { display: none; }
+
+  .m-pane { display: none; height: 100%; }
+  .m-pane.active { display: block; }
+
+  /* MOBILE LINKED APPROVAL */
+  .m-section-caption { padding: 14px 22px 8px; font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; }
+
+  .m-approval { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  .m-approval.linked { border-color: var(--purple); padding: 0; overflow: hidden; }
+  .m-linked-banner { background: var(--purple-soft); padding: 8px 14px; display: flex; align-items: center; gap: 8px; }
+  .m-linked-banner .ic { width: 18px; height: 18px; background: var(--purple); color: white; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .m-linked-banner .text { font-family: var(--mono); font-size: 9px; color: var(--purple); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; }
+  .m-linked-side { padding: 12px 14px; border-top: 1px solid var(--line); }
+  .m-linked-side:first-of-type { border-top: 0; }
+  .m-linked-side .step-h { font-family: var(--mono); font-size: 9px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; display: flex; gap: 6px; align-items: center; }
+  .m-linked-side .step { background: var(--purple); color: white; width: 14px; height: 14px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; }
+  .m-linked-side h4 { font-size: 12.5px; font-weight: 600; line-height: 1.3; }
+  .m-linked-side .recip { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+  .m-linked-side .draft-mini { background: var(--bg-2); border-left: 2px solid var(--line-2); padding: 8px 10px; border-radius: 0 4px 4px 0; font-size: 11.5px; line-height: 1.5; color: var(--ink-2); margin-top: 8px; max-height: 80px; overflow: hidden; }
+
+  .m-approval-head { display: flex; justify-content: space-between; margin-bottom: 10px; }
+  .m-approval-head .ch { font-family: var(--mono); font-size: 9px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; }
+  .m-approval h4 { font-size: 13px; font-weight: 600; margin-top: 4px; }
+  .m-approval .recip { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+  .m-approval .draft { background: var(--bg-2); border-left: 2px solid var(--line-2); padding: 10px 12px; border-radius: 0 6px 6px 0; font-size: 12px; line-height: 1.5; color: var(--ink-2); margin: 10px 0; }
+  .m-approval-actions { display: flex; gap: 6px; padding: 12px 14px; background: var(--bg-2); border-top: 1px solid var(--line); }
+  .m-approval-actions button { flex: 1; font-family: var(--mono); font-size: 10px; padding: 8px 0; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-1); color: var(--ink-2); cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+  .m-approval-actions button.primary { background: var(--red); color: white; border-color: var(--red); }
+  .m-approval-actions button.purple { background: var(--purple); color: white; border-color: var(--purple); }
+  .m-approval:not(.linked) .m-approval-actions { background: transparent; border-top: 0; padding: 0; margin-top: 4px; }
+
+  /* MOBILE EMAIL */
+  .m-acct-tabs { display: flex; gap: 6px; padding: 4px 22px 14px; overflow-x: auto; scrollbar-width: none; }
+  .m-acct-tabs::-webkit-scrollbar { display: none; }
+  .m-acct-tab { font-family: var(--mono); font-size: 10px; padding: 6px 11px; border-radius: 999px; background: var(--bg-1); border: 1px solid var(--line); color: var(--ink-3); white-space: nowrap; cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em; }
+  .m-acct-tab.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  .m-email-list { padding: 0 22px; }
+  .m-email { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; padding: 13px 14px; margin-bottom: 8px; }
+  .m-email.linked { border-left: 3px solid var(--purple); }
+  .m-email .top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .m-email .from { font-size: 12.5px; font-weight: 600; }
+  .m-email .time { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+  .m-email .subj { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
+  .m-email .snippet { font-size: 11.5px; color: var(--ink-3); margin-top: 4px; line-height: 1.4; }
+  .m-email .badges { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
+
+  /* MOBILE INSIGHTS */
+  .m-insight { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin: 0 22px 10px; }
+  .m-insight-head { display: flex; gap: 10px; margin-bottom: 10px; }
+  .m-insight-icon { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .m-insight-type { font-family: var(--mono); font-size: 9px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; }
+  .m-insight-title { font-size: 13px; font-weight: 600; line-height: 1.35; margin-top: 2px; }
+  .m-insight-body { font-size: 12px; color: var(--ink-2); line-height: 1.5; margin-bottom: 10px; }
+  .m-insight-actions { display: flex; gap: 6px; }
+  .m-insight-actions button { flex: 1; font-family: var(--mono); font-size: 10px; padding: 7px 0; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-2); color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.05em; }
+  .m-insight-actions .primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  /* MOBILE PROJECTS */
+  .m-proj { background: var(--bg-1); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin: 0 22px 10px; }
+  .m-proj.elevated { border-left: 3px solid var(--amber); }
+  .m-proj.critical { border-left: 3px solid var(--red); }
+  .m-proj h4 { font-family: var(--display); font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+  .m-proj-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-3); margin: 4px 0 10px; }
+  .m-proj-bar { height: 4px; background: var(--bg-3); border-radius: 2px; overflow: hidden; }
+  .m-proj-bar .fill { height: 100%; background: var(--ink); }
+  .m-proj.critical .m-proj-bar .fill { background: var(--red); }
+  .m-proj.elevated .m-proj-bar .fill { background: var(--amber); }
+  .m-proj-bar-meta { display: flex; justify-content: space-between; margin-top: 6px; font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+
+  /* DESIGN NOTES */
+  .design-notes { max-width: 1200px; margin: 60px auto 80px; padding: 0 28px; color: #C9C5BD; font-family: var(--sans); }
+  .design-notes h2 { font-family: var(--display); font-size: 32px; font-weight: 700; letter-spacing: -0.02em; color: #F4F1EA; margin-bottom: 6px; }
+  .design-notes .sub { font-family: var(--mono); font-size: 11px; color: #8A8680; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 28px; }
+  .design-notes .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 36px; }
+  .design-notes .note { background: #14141A; border: 1px solid #2A2A30; border-radius: 10px; padding: 18px 20px; }
+  .design-notes .note h3 { font-family: var(--display); font-size: 16px; font-weight: 600; color: #F4F1EA; margin-bottom: 8px; }
+  .design-notes .note p { font-size: 12.5px; line-height: 1.55; color: #8A8680; }
+  .design-notes .lbl { font-family: var(--mono); font-size: 9px; color: #DC2A2A; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px; display: block; }
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <div class="brand">
+    <div class="dot"></div>
+    <b>TAKEOVERS</b>
+    <span>chief of staff · v2 mockup · today schedule + linked actions</span>
+  </div>
+  <div class="toggle">
+    <button class="active" onclick="setView('both')">Both</button>
+    <button onclick="setView('desktop')">Desktop</button>
+    <button onclick="setView('mobile')">Mobile</button>
+  </div>
+</div>
+
+<div class="stage" id="stage">
+
+<!-- ============================================================== -->
+<!-- DESKTOP -->
+<!-- ============================================================== -->
+<div class="frame desktop" id="frame-desktop">
+  <div class="chrome">
+    <div class="dots"><span></span><span></span><span></span></div>
+    <div class="url">cos.takeoversrentals.com<b>/today</b></div>
+  </div>
+
+  <div class="app-grid">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <div class="logo">tak<b>•</b>cos</div>
+        <div class="greet">Thursday morning</div>
+        <div class="name">Selmen</div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">Workspace</div>
+        <div class="nav-item" data-tab="talk" onclick="setTab('talk', this)">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Talk
+        </div>
+        <div class="nav-item active" data-tab="today" onclick="setTab('today', this)">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Today
+          <span class="badge">7</span>
+        </div>
+        <div class="nav-item" data-tab="approvals" onclick="setTab('approvals', this)">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          Approvals
+          <span class="badge">4</span>
+        </div>
+        <div class="nav-item" data-tab="inbox" onclick="setTab('inbox', this)">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+          Inbox
+          <span class="badge muted">12</span>
+        </div>
+
+        <div class="nav-section">Operations</div>
+        <div class="nav-item" data-tab="team" onclick="setTab('team', this)">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Team
+        </div>
+        <div class="nav-item" data-tab="projects" onclick="setTab('projects', this)">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          Projects
+          <span class="badge muted">5</span>
+        </div>
+        <div class="nav-item" data-tab="insights" onclick="setTab('insights', this)">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Insights
+          <span class="badge">5</span>
+        </div>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="sys-stat">
+          <div class="pulse"></div>
+          ALL SYSTEMS · 23ms
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+
+      <!-- ====== TODAY — RESTRUCTURED ====== -->
+      <div class="pane active" data-pane="today">
+        <div class="topbar" style="margin: -24px -32px 24px;">
+          <div class="crumb">today · <b>Thu Apr 30 · 8:42 AM</b></div>
+          <div class="topbar-actions">
+            <button class="pill-btn">Refresh brief</button>
+            <button class="pill-btn">Reflow schedule</button>
+            <button class="pill-btn primary">+ Brain dump</button>
+          </div>
+        </div>
+
+        <div class="pane-head">
+          <h1>Good morning, <em>Selmen</em>.</h1>
+          <div class="sub">Six hours twenty of focused work ahead. Three things only you can do.</div>
+        </div>
+
+        <div class="today-grid-v2">
+
+          <!-- LEFT: SCHEDULE (NEW) -->
+          <div>
+            <div class="schedule-card">
+              <div class="schedule-head">
+                <div>
+                  <div class="lbl">Schedule · today</div>
+                  <h2>The day, ordered.</h2>
+                  <div class="sub">8:42 AM now · ends 5:30 PM · 3 fixed, 4 flex</div>
+                </div>
+                <div class="meta-r">
+                  <b>6h 20m</b>focus time
+                  <div style="margin-top: 10px;"><b style="color: var(--red);">1h 40m</b>tier C only</div>
+                </div>
+              </div>
+
+              <div class="schedule-body">
+
+                <div class="sblock now flex">
+                  <div class="timecol">
+                    <b>8:30</b>
+                    <div>NOW</div>
+                    <div class="dur">~30m</div>
+                  </div>
+                  <div class="content">
+                    <div class="marker"></div>
+                    <div class="body-c">
+                      <div class="ttl">Morning brief review</div>
+                      <div class="desc">You're here. Read brief, scan awaiting, set the day's order. Default 30m budget.</div>
+                      <div class="tags">
+                        <span class="tag green">in progress</span>
+                        <span class="tag gray">flex block</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sblock fixed">
+                  <div class="timecol">
+                    <b>9:30</b>
+                    <div>AM</div>
+                    <div class="dur">15m</div>
+                  </div>
+                  <div class="content">
+                    <div class="marker"></div>
+                    <div class="body-c">
+                      <div class="ttl">Approve 4 Tier B drafts</div>
+                      <div class="desc">Brandon contract email · group reschedule SMS · Meta invoice dispute · NEW: influencer collab.</div>
+                      <div class="tags">
+                        <span class="tag amber">tier B · 4 pending</span>
+                        <span class="tag purple">1 linked</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sblock fixed">
+                  <div class="timecol">
+                    <b>11:00</b>
+                    <div>AM</div>
+                    <div class="dur">20m</div>
+                  </div>
+                  <div class="content">
+                    <div class="marker"></div>
+                    <div class="body-c">
+                      <div class="ttl">Phone call · Brandon — Fareharbor contract review push</div>
+                      <div class="desc">He's been silent 2 days. M1 of Fareharbor migration is blocked on him. Everything downstream is waiting.</div>
+                      <div class="tags">
+                        <span class="tag red">tier C · only you</span>
+                        <span class="tag gray">unblock project</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sblock deep">
+                  <div class="timecol">
+                    <b>11:30</b>
+                    <div>AM</div>
+                    <div class="dur">90m</div>
+                  </div>
+                  <div class="content">
+                    <div class="marker"></div>
+                    <div class="body-c">
+                      <div class="ttl">Deep work · Q2 marketing plan review</div>
+                      <div class="desc">Josh's 3-page draft in Drive. Sign-off needed before Monday. Agent flagged 2 sections to focus on.</div>
+                      <div class="tags">
+                        <span class="tag purple">deep work</span>
+                        <span class="tag blue">drive ready</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sblock fixed">
+                  <div class="timecol">
+                    <b>1:00</b>
+                    <div>PM</div>
+                    <div class="dur">45m</div>
+                  </div>
+                  <div class="content">
+                    <div class="marker"></div>
+                    <div class="body-c">
+                      <div class="ttl">Lunch — buffer block</div>
+                      <div class="desc">Reserved. Agent will not schedule into this.</div>
+                      <div class="tags">
+                        <span class="tag gray">buffer</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sblock flex">
+                  <div class="timecol">
+                    <b>2:00</b>
+                    <div>PM</div>
+                    <div class="dur">30m</div>
+                  </div>
+                  <div class="content">
+                    <div class="marker"></div>
+                    <div class="body-c">
+                      <div class="ttl">Sign Karina's brokerage referral docs</div>
+                      <div class="desc">DocuSign link in inbox. Karina pre-reviewed everything. Just signature.</div>
+                      <div class="tags">
+                        <span class="tag red">tier C · only you</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sblock fixed">
+                  <div class="timecol">
+                    <b>3:00</b>
+                    <div>PM</div>
+                    <div class="dur">60m</div>
+                  </div>
+                  <div class="content">
+                    <div class="marker"></div>
+                    <div class="body-c">
+                      <div class="ttl">Weekly sync · Nick + Oscar</div>
+                      <div class="desc">Calendar invite. Talking points pre-drafted in Drive. Agent will join, transcribe, surface action items after.</div>
+                      <div class="tags">
+                        <span class="tag red">calendar</span>
+                        <span class="tag green">prep ready</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sblock flex">
+                  <div class="timecol">
+                    <b>4:30</b>
+                    <div>PM</div>
+                    <div class="dur">60m</div>
+                  </div>
+                  <div class="content">
+                    <div class="marker"></div>
+                    <div class="body-c">
+                      <div class="ttl">Buffer · clear remaining approvals</div>
+                      <div class="desc">Agent reserves the last hour for whatever drifted. If empty, you're done early.</div>
+                      <div class="tags">
+                        <span class="tag gray">buffer · flex</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <div class="schedule-foot">
+                <div class="info">Legend: <b style="color: var(--red);">●</b> Fixed · <b style="color: var(--blue);">●</b> Flex · <b style="color: var(--purple);">●</b> Deep work · <b style="color: var(--green);">●</b> In progress</div>
+                <div class="actions">
+                  <button class="pill-btn">+ Add block</button>
+                  <button class="pill-btn">Settings</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="section-title">
+              <h3>Today's full plate</h3>
+              <span class="count">7 items</span>
+              <span class="more">VIEW ALL →</span>
+            </div>
+            <div style="font-size: 12px; color: var(--ink-3); line-height: 1.55; padding: 0 4px 8px;">Everything captured for today. The schedule above is the agent's recommended ordering. Items not on the schedule are either dispatched to team or waiting on someone else.</div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="background: var(--bg-1); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; display: flex; gap: 10px; align-items: center; font-size: 12.5px;">
+                <span style="color: var(--green);">●</span>
+                <span style="color: var(--ink-3); text-decoration: line-through;">Confirm Saturday glow tour group of 18 — Oscar handled</span>
+                <span class="tag green" style="margin-left: auto;">closed 7:42 AM</span>
+              </div>
+              <div style="background: var(--bg-1); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; display: flex; gap: 10px; align-items: center; font-size: 12.5px;">
+                <span style="color: var(--blue);">●</span>
+                <span>Tahir: Fareharbor reporting integration</span>
+                <span class="tag amber" style="margin-left: auto;">awaiting · 4d 6h</span>
+              </div>
+              <div style="background: var(--bg-1); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; display: flex; gap: 10px; align-items: center; font-size: 12.5px;">
+                <span style="color: var(--blue);">●</span>
+                <span>Orlando: Field signage update</span>
+                <span class="tag blue" style="margin-left: auto;">in progress</span>
+              </div>
+              <div style="background: var(--bg-1); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; display: flex; gap: 10px; align-items: center; font-size: 12.5px;">
+                <span style="color: var(--purple);">●</span>
+                <span>NEW: Oscar — set up TravelDom influencer promo tour <span style="color: var(--purple); font-family: var(--mono); font-size: 10px;">just spawned from inbox</span></span>
+                <span class="tag purple" style="margin-left: auto;">linked · pending approval</span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- RIGHT: BRIEF + AWAITING + PROJECTS -->
+          <div>
+            <div class="brief-card">
+              <div class="label">Morning brief · 6:14 am</div>
+              <h2>Tahir hasn't replied on the Fareharbor reporting integration since Monday. Brandon's contract review is the unblock — he's silent too. Plus an interesting one: an influencer collab request came in last night that's worth taking.</h2>
+              <div class="brief-meta">
+                <div>Age <b>2h 28m</b></div>
+                <div>Confidence <b>0.91</b></div>
+                <div>Run <b>14s</b></div>
+                <div>Cost <b>$0.04</b></div>
+              </div>
+              <div class="stat-row">
+                <div class="stat"><div class="num">12</div><div class="lbl">In-flight</div></div>
+                <div class="stat"><div class="num red">3</div><div class="lbl">Awaiting</div></div>
+                <div class="stat"><div class="num amber">2</div><div class="lbl">At risk</div></div>
+                <div class="stat"><div class="num green">8</div><div class="lbl">Closed Wed</div></div>
+              </div>
+            </div>
+
+            <div class="section-title">
+              <h3>Awaiting reply</h3>
+              <span class="count">3</span>
+              <span class="more">VIEW ALL →</span>
+            </div>
+
+            <div class="awaiting-list">
+              <div class="awaiting critical">
+                <div>
+                  <div class="who">Tahir</div>
+                  <div class="what">Fareharbor reporting integration — nudged 2x</div>
+                </div>
+                <div class="age"><b>4d 6h</b>silent</div>
+              </div>
+              <div class="awaiting elevated">
+                <div>
+                  <div class="who">Brandon</div>
+                  <div class="what">Contract review — first nudge yesterday</div>
+                </div>
+                <div class="age"><b>2d 1h</b>silent</div>
+              </div>
+              <div class="awaiting">
+                <div>
+                  <div class="who">Orlando</div>
+                  <div class="what">Field signage — acknowledged, in progress</div>
+                </div>
+                <div class="age"><b>1d 4h</b>active</div>
+              </div>
+            </div>
+
+            <div class="section-title">
+              <h3>Projects at risk</h3>
+              <span class="count">2</span>
+            </div>
+
+            <div class="proj-card critical">
+              <div class="proj-head">
+                <div>
+                  <div class="proj-name">Fareharbor migration</div>
+                  <div class="proj-meta">Lead <b>Nick</b> · Target <b>May 15</b> · <b style="color: var(--red);">CRITICAL</b></div>
+                </div>
+              </div>
+              <div class="proj-bar"><div class="fill" style="width: 38%"></div></div>
+              <div class="proj-bar-meta"><span>3 of 8 milestones · 1 overdue</span><span>38%</span></div>
+            </div>
+
+            <div class="proj-card elevated">
+              <div class="proj-head">
+                <div>
+                  <div class="proj-name">Dallas grand opening</div>
+                  <div class="proj-meta">Lead <b>Richard</b> · Target <b>Jul 4</b> · <b style="color: var(--amber);">ELEVATED</b></div>
+                </div>
+              </div>
+              <div class="proj-bar"><div class="fill" style="width: 22%"></div></div>
+              <div class="proj-bar-meta"><span>2 of 9 milestones · pace -18%</span><span>22%</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== TALK ====== -->
+      <div class="pane" data-pane="talk">
+        <div class="topbar" style="margin: -24px -32px 24px;">
+          <div class="crumb">talk · <b>conversational capture</b></div>
+          <div class="topbar-actions">
+            <button class="pill-btn">Clear</button>
+            <button class="pill-btn">+ New thread</button>
+          </div>
+        </div>
+        <div class="pane-head">
+          <h1>Brain dump <em>directly</em>.</h1>
+          <div class="sub">Voice or text. The agent figures out what to do.</div>
+        </div>
+        <div class="talk-layout">
+          <div class="talk-main">
+            <div class="talk-msgs">
+              <div class="msg user">
+                <div class="bubble">Need to migrate from current booking to Fareharbor by end of month. Nick handles tracking pixel work. Orlando handles signage and operations training. Tahir handles building the reporting integration. Brandon needs to review the contract first.</div>
+                <div class="ts">8:14 AM · voice memo · 32s</div>
+              </div>
+              <div class="msg agent">
+                <div class="bubble">
+                  This sounds like a project. Want me to plan it out?
+                  <div class="talk-card">
+                    <div class="head"><b>FAREHARBOR MIGRATION</b> · 5 milestones · Risk <b style="color: var(--amber);">ELEVATED</b></div>
+                    <div class="body">
+                      <b style="color: var(--ink);">M1.</b> Brandon — contract review<br>
+                      <b style="color: var(--ink);">M2.</b> Nick — tracking pixel updates <span style="color: var(--ink-4);">(after M1)</span><br>
+                      <b style="color: var(--ink);">M3.</b> Orlando — signage and ops training <span style="color: var(--ink-4);">(after M1)</span><br>
+                      <b style="color: var(--ink);">M4.</b> Tahir — reporting integration <span style="color: var(--ink-4);">(after M1)</span><br>
+                      <b style="color: var(--ink);">M5.</b> Cutover and go-live <span style="color: var(--ink-4);">(after M2, M3, M4)</span>
+                    </div>
+                    <div class="actions">
+                      <button class="mini-btn primary">Approve plan</button>
+                      <button class="mini-btn">Edit milestones</button>
+                      <button class="mini-btn">Reject</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="ts">8:14 AM · planned by Opus 4.7 · 11s</div>
+              </div>
+              <div class="msg user">
+                <div class="bubble">Yes approve. But move Tahir's deadline back two weeks — he's got too much on right now.</div>
+                <div class="ts">8:15 AM</div>
+              </div>
+              <div class="msg agent">
+                <div class="bubble">Done. M4 deadline pushed from May 8 to May 22. Project approved. Dispatching M1 (Brandon) now — Tier B because contracts touch external party. Draft is in your Approvals tab.</div>
+                <div class="ts">8:15 AM</div>
+              </div>
+            </div>
+            <div class="talk-input-wrap">
+              <div class="talk-input">
+                <input type="text" placeholder="Brain dump anything…" />
+                <button class="voice-btn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <aside class="talk-context">
+            <h4>Context loaded</h4>
+            <div class="ctx-item"><div class="lbl">Active project</div><div class="val">Fareharbor migration</div></div>
+            <div class="ctx-item"><div class="lbl">Recent threads</div><div class="val">Brandon contract · Tahir reporting</div></div>
+            <div class="ctx-item"><div class="lbl">Mentioned team</div><div class="val">Nick · Orlando · Tahir · Brandon</div></div>
+            <div class="ctx-item"><div class="lbl">Capture today</div><div class="val">14 brain dumps · 6 dispatched</div></div>
+            <div class="ctx-item"><div class="lbl">Drive files referenced</div><div class="val">Q2 Marketing Plan v3</div></div>
+          </aside>
+        </div>
+      </div>
+
+      <!-- ====== APPROVALS — NOW WITH LINKED PAIR ====== -->
+      <div class="pane" data-pane="approvals">
+        <div class="topbar" style="margin: -24px -32px 24px;">
+          <div class="crumb">approvals · <b>4 pending · 1 linked pair</b></div>
+          <div class="topbar-actions">
+            <button class="pill-btn">Approve all routine</button>
+            <button class="pill-btn">Settings</button>
+          </div>
+        </div>
+        <div class="pane-head">
+          <h1>Four drafts <em>need</em> you.</h1>
+          <div class="sub">One is a linked pair — reply to a sender plus a spawned task for your team.</div>
+        </div>
+
+        <!-- LINKED PAIR -->
+        <div class="approval-card linked">
+          <div class="linked-banner">
+            <div class="icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </div>
+            <div class="text">Linked actions · <b>Reply + spawn task</b></div>
+            <div class="help">Approve both with one tap, or split to handle separately</div>
+          </div>
+
+          <div class="linked-pair">
+            <div class="linked-side">
+              <div class="linked-side-head"><span class="step">1</span> Outbound reply</div>
+              <h4>Re: Influencer collab — TravelDom (820K IG)</h4>
+              <div class="recip">To <b>Sofia Méndez</b> · sofia@traveldom.co · external</div>
+              <div class="linked-content">Hey Sofia,
+
+Appreciate the outreach. Yes — we'd love to host you for a content shoot. The day glow tour is our most photogenic offering, and the property has some incredible spots for video.
+
+I'm looping you in with Oscar Rivera, our sales lead — he'll set up the date, group rate, logistics, and make sure our team has everything ready for your crew. Expect to hear from him within 24 hours.
+
+— Selmen</div>
+            </div>
+
+            <div class="linked-side">
+              <div class="linked-side-head"><span class="step">2</span> Spawned task</div>
+              <h4>Set up TravelDom influencer promo tour</h4>
+              <div class="recip">To <b>Oscar Rivera</b> · @oscar · sales · SMS preferred</div>
+              <div class="linked-content"><b style="color: var(--ink); font-family: var(--display); font-size: 13px;">Brief for Oscar:</b>
+TravelDom (Sofia Méndez, 820K IG followers, travel content) wants to shoot at the property. Day glow tour is the offering. They have a 4-person crew (Sofia + 3 producers).
+
+<b style="color: var(--ink);">Action:</b>
+1. Reach out to Sofia within 24h to coordinate date
+2. Apply influencer rate (50% off for 4 vehicles)
+3. Reserve the late afternoon slot for golden hour
+4. Confirm crew vehicle access for cameras
+5. Loop Josh in for cross-promo planning
+
+<b style="color: var(--ink);">Context attached:</b>
+Original email thread · Past influencer rate sheet · Sofia's media kit</div>
+            </div>
+          </div>
+
+          <div class="linked-actions">
+            <button class="pill-btn primary">✓ Approve both · send reply + dispatch task</button>
+            <button class="pill-btn">Edit reply</button>
+            <button class="pill-btn">Edit task</button>
+            <button class="pill-btn">Split — handle separately</button>
+            <button class="pill-btn">Reject</button>
+            <span class="reasoning">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              Tier B · external + spawns work
+            </span>
+          </div>
+        </div>
+
+        <!-- regular approvals -->
+        <div class="approval-card">
+          <div class="approval-head">
+            <div class="approval-meta-l">
+              <div class="channel">Email · sel@takeoversrentals.com</div>
+              <h4>Re: Fareharbor migration — contract review request</h4>
+              <div class="recip">To <b>Brandon Lherisson</b> · brandon@lherisson.legal · partner</div>
+            </div>
+            <div class="tier-badge">Tier B</div>
+          </div>
+          <div class="draft-content">Hey Brandon,
+
+Quick one — we're moving forward on the Fareharbor migration. Need you to review their standard contract before we sign anything. Specifically watching for: (1) data ownership terms, (2) cancellation provisions, (3) liability split on integration failures.
+
+Five-day target if possible. I'll have Tahir send you the draft directly.
+
+— Selmen<span class="sig">[Sent via sel@takeoversrentals.com]</span></div>
+          <div class="approval-actions">
+            <button class="pill-btn primary">✓ Approve & send</button>
+            <button class="pill-btn">Edit draft</button>
+            <button class="pill-btn">Reject</button>
+            <span class="reasoning">Tier B · external partner · contract touch</span>
+          </div>
+        </div>
+
+        <div class="approval-card">
+          <div class="approval-head">
+            <div class="approval-meta-l">
+              <div class="channel">SMS · Twilio</div>
+              <h4>Reschedule confirmation — group of 18 Saturday glow tour</h4>
+              <div class="recip">To <b>Maria Gonzalez</b> · group lead · external customer</div>
+            </div>
+            <div class="tier-badge">Tier B</div>
+          </div>
+          <div class="draft-content">Hi Maria — confirming we moved your group of 18 from Sat 9pm to Sat 10pm glow tour, same 1,000-acre property. Same group rate. Reply YES to confirm. — Takeovers Rentals</div>
+          <div class="approval-actions">
+            <button class="pill-btn primary">✓ Approve & send</button>
+            <button class="pill-btn">Edit</button>
+            <button class="pill-btn">Reject</button>
+            <span class="reasoning">Tier B · external customer · scheduling</span>
+          </div>
+        </div>
+
+        <div class="approval-card">
+          <div class="approval-head">
+            <div class="approval-meta-l">
+              <div class="channel">Email · selmen@yourmusicmanager.com</div>
+              <h4>Re: Meta ad invoice — March overage clarification</h4>
+              <div class="recip">To <b>billing@meta.com</b> · vendor</div>
+            </div>
+            <div class="tier-badge">Tier B</div>
+          </div>
+          <div class="draft-content">Hi — flagging that the March invoice shows $1,847 above our cap. Looking for itemized breakdown of any campaigns that ran beyond approved spend. Holding payment until we reconcile.
+
+Selmen Hassen — Takeovers Rentals</div>
+          <div class="approval-actions">
+            <button class="pill-btn primary">✓ Approve & send</button>
+            <button class="pill-btn">Edit</button>
+            <button class="pill-btn">Reject</button>
+            <span class="reasoning">Tier B · vendor money dispute · hub account</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== INBOX — WITH LINKED INDICATORS ====== -->
+      <div class="pane" data-pane="inbox">
+        <div class="topbar" style="margin: -24px -32px 24px;">
+          <div class="crumb">inbox · <b>3 accounts · 12 needing attention · 1 spawned task</b></div>
+          <div class="topbar-actions">
+            <button class="pill-btn">Filter</button>
+            <button class="pill-btn">Settings</button>
+          </div>
+        </div>
+        <div class="pane-head">
+          <h1>Three inboxes, <em>one view</em>.</h1>
+          <div class="sub">Personal account is locked — drafts only, no auto-send. Some emails spawn team tasks.</div>
+        </div>
+
+        <div class="inbox-grid">
+          <aside class="acct-list">
+            <div class="acct active">
+              <div class="name">sel@takeoversrentals.com</div>
+              <div class="stat"><span class="red">●</span> 5 needing reply · Tier A+B · <b style="color: var(--purple);">1 linked</b></div>
+            </div>
+            <div class="acct">
+              <div class="name">selmen@yourmusicmanager.com</div>
+              <div class="stat">2 needing reply · Tier B only</div>
+            </div>
+            <div class="acct">
+              <div class="name locked">soselman@gmail.com</div>
+              <div class="stat">5 personal · drafts only</div>
+            </div>
+            <div style="padding: 14px 12px 6px; font-family: var(--mono); font-size: 9px; color: var(--ink-4); text-transform: uppercase; letter-spacing: 0.1em;">Filters</div>
+            <div class="acct"><div class="name" style="font-weight: 500; color: var(--ink-2);">Drafted by agent</div><div class="stat">3</div></div>
+            <div class="acct"><div class="name" style="font-weight: 500; color: var(--ink-2);">Spawned tasks</div><div class="stat">1</div></div>
+            <div class="acct"><div class="name" style="font-weight: 500; color: var(--ink-2);">Auto-handled today</div><div class="stat">14</div></div>
+            <div class="acct"><div class="name" style="font-weight: 500; color: var(--ink-2);">Archived this week</div><div class="stat">87</div></div>
+          </aside>
+
+          <div class="email-list">
+            <!-- LINKED EMAIL -->
+            <div class="email-row unread" style="border-left: 3px solid var(--purple); background: linear-gradient(90deg, var(--purple-soft), transparent 30%);">
+              <div class="email-status linked"></div>
+              <div>
+                <div class="email-from">Sofia Méndez · TravelDom</div>
+                <div class="email-subj">Influencer collab — content shoot at Takeovers</div>
+                <div class="email-snippet">Hi Selmen, I run TravelDom on Instagram (820k followers, mostly travel/adventure content). Was at your property last weekend with friends — your glow tours are exactly the kind of content my audience…</div>
+                <div class="badges">
+                  <span class="tag purple">linked: reply + task</span>
+                  <span class="tag amber">draft ready</span>
+                  <span class="tag gray">external · opportunity</span>
+                </div>
+              </div>
+              <div class="email-time">11:42 PM</div>
+            </div>
+
+            <div class="email-row unread">
+              <div class="email-status draft"></div>
+              <div>
+                <div class="email-from">Brandon Lherisson</div>
+                <div class="email-subj">Re: Fareharbor migration — contract review</div>
+                <div class="email-snippet">Sel — caught up. Read the contract. Section 7.2 is concerning — they reserve the right to retain customer data 90d post-cancellation…</div>
+                <div class="badges"><span class="tag amber">draft ready</span><span class="tag gray">partner</span></div>
+              </div>
+              <div class="email-time">8:21 AM</div>
+            </div>
+
+            <div class="email-row unread">
+              <div class="email-status queued"></div>
+              <div>
+                <div class="email-from">Karina Alvarez</div>
+                <div class="email-subj">Brokerage referral — needs your signature</div>
+                <div class="email-snippet">Hey Selmen, the docs from yesterday are ready for sig. Fully reviewed. Just need you in DocuSign.</div>
+                <div class="badges"><span class="tag red">tier C</span><span class="tag gray">selmen-only</span></div>
+              </div>
+              <div class="email-time">7:33 AM</div>
+            </div>
+
+            <div class="email-row">
+              <div class="email-status auto"></div>
+              <div>
+                <div class="email-from">Oscar Rivera</div>
+                <div class="email-subj">Saturday group of 18 — confirmed and slotted</div>
+                <div class="email-snippet">Got it handled. Moved them to 10pm glow slot. Maria confirmed. Inventory cross-check showed 22 ATVs ready, 4 buggies on standby.</div>
+                <div class="badges"><span class="tag green">auto-acked</span></div>
+              </div>
+              <div class="email-time">7:42 AM</div>
+            </div>
+
+            <div class="email-row">
+              <div class="email-status auto"></div>
+              <div>
+                <div class="email-from">FareHarbor Notifications</div>
+                <div class="email-subj">14 new bookings overnight · $4,290 deposits</div>
+                <div class="email-snippet">Booking summary attached. All processed automatically. Top tour: 1-hour ATV, 9 bookings.</div>
+                <div class="badges"><span class="tag green">summarized</span></div>
+              </div>
+              <div class="email-time">6:14 AM</div>
+            </div>
+
+            <div class="email-row">
+              <div class="email-status archived"></div>
+              <div>
+                <div class="email-from">Twilio Status</div>
+                <div class="email-subj">Weekly delivery report — 99.4% delivery rate</div>
+                <div class="email-snippet">Auto-archived. Routine delivery summary, no action needed.</div>
+                <div class="badges"><span class="tag gray">archived</span></div>
+              </div>
+              <div class="email-time">6:00 AM</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== TEAM — list + detail ====== -->
+      <div class="pane" data-pane="team">
+        <div class="topbar" style="margin: -24px -32px 24px;">
+          <div class="crumb">team · <b id="team-crumb">11 members</b></div>
+          <div class="topbar-actions">
+            <button class="pill-btn" id="team-back" style="display: none;" onclick="closeTeamDetail()">← Back to team</button>
+            <button class="pill-btn">+ Add member</button>
+            <button class="pill-btn">Sort by load</button>
+          </div>
+        </div>
+
+        <!-- TEAM LIST -->
+        <div id="team-list-view">
+          <div class="pane-head">
+            <h1>The team, <em>at a glance</em>.</h1>
+            <div class="sub">Load · response patterns · communication style.</div>
+          </div>
+          <div class="team-grid">
+            <div class="person-card" onclick="openTeamDetail('nick')">
+              <div class="person-head"><div class="avatar red">ND</div><div><div class="person-name">Nick Delgado</div><div class="person-role">Lead Dev · Ads · Data</div></div></div>
+              <div class="person-stats"><div><b>4</b>open</div><div><b>3.2h</b>avg reply</div><div><b>97%</b>completion</div></div>
+              <div class="person-style"><div class="lbl">Style preference</div><div class="val">"Detailed briefs. Code links. Email preferred for tech tasks."</div></div>
+            </div>
+            <div class="person-card" onclick="openTeamDetail('oscar')">
+              <div class="person-head"><div class="avatar green">OR</div><div><div class="person-name">Oscar Rivera</div><div class="person-role">Sales · Inventory · OTAs</div></div></div>
+              <div class="person-stats"><div><b>6</b>open</div><div><b>1.4h</b>avg reply</div><div><b>99%</b>completion</div></div>
+              <div class="person-style"><div class="lbl">Style preference</div><div class="val">"Detailed for inventory. Quick for confirmations. SMS preferred."</div></div>
+            </div>
+            <div class="person-card">
+              <div class="person-head"><div class="avatar blue">JE</div><div><div class="person-name">Josh Espinoza</div><div class="person-role">Social · Content · Brand</div></div></div>
+              <div class="person-stats"><div><b>3</b>open</div><div><b>2.1h</b>avg reply</div><div><b>92%</b>completion</div></div>
+              <div class="person-style"><div class="lbl">Style preference</div><div class="val">"Detailed creative briefs. Reference links. Slow on weekends."</div></div>
+            </div>
+            <div class="person-card">
+              <div class="person-head"><div class="avatar amber">OM</div><div><div class="person-name">Orlando</div><div class="person-role">Field · Fleet · Operations</div></div></div>
+              <div class="person-stats"><div><b>2</b>open</div><div><b>0.8h</b>avg reply</div><div><b>100%</b>completion</div></div>
+              <div class="person-style"><div class="lbl">Style preference</div><div class="val">"Terse. Direct. SMS only. Avg reply 12 words."</div></div>
+            </div>
+            <div class="person-card">
+              <div class="person-head"><div class="avatar">JH</div><div><div class="person-name">Joan Hernandez</div><div class="person-role">Asst Field · Check-in</div></div></div>
+              <div class="person-stats"><div><b>1</b>open</div><div><b>2.4h</b>avg reply</div><div><b>98%</b>completion</div></div>
+              <div class="person-style"><div class="lbl">Style preference</div><div class="val">"Terse. SMS. Often offline mid-day during ride hours."</div></div>
+            </div>
+            <div class="person-card" style="border-color: var(--red);">
+              <div class="person-head">
+                <div class="avatar red">TH</div>
+                <div><div class="person-name">Tahir <span style="color: var(--red); font-size: 10px; font-family: var(--mono); margin-left: 6px;">⚠ OVERLOAD</span></div><div class="person-role">VA · Dev · Chargebacks</div></div>
+              </div>
+              <div class="person-stats"><div><b style="color: var(--red);">8</b>open</div><div><b style="color: var(--red);">18h</b>avg reply</div><div><b style="color: var(--amber);">73%</b>completion</div></div>
+              <div class="person-style"><div class="lbl">Style preference</div><div class="val">"Detailed for dev. Slow on chargebacks. 2x his average open count."</div></div>
+            </div>
+            <div class="person-card">
+              <div class="person-head"><div class="avatar purple">KS</div><div><div class="person-name">Kathy Selman</div><div class="person-role">Invoicing · Payroll</div></div></div>
+              <div class="person-stats"><div><b>2</b>open</div><div><b>4.1h</b>avg reply</div><div><b>96%</b>completion</div></div>
+              <div class="person-style"><div class="lbl">Style preference</div><div class="val">"Terse. Email. Process-focused."</div></div>
+            </div>
+            <div class="person-card">
+              <div class="person-head"><div class="avatar blue">KA</div><div><div class="person-name">Karina Alvarez</div><div class="person-role">Realtor</div></div></div>
+              <div class="person-stats"><div><b>1</b>open</div><div><b>5.2h</b>avg reply</div><div><b>94%</b>completion</div></div>
+              <div class="person-style"><div class="lbl">Style preference</div><div class="val">"Detailed. Email. Sometimes calls back instead of replying."</div></div>
+            </div>
+            <div class="person-card">
+              <div class="person-head"><div class="avatar amber">RH</div><div><div class="person-name">Richard Hernandez</div><div class="person-role">TX Partner</div></div></div>
+              <div class="person-stats"><div><b>3</b>open</div><div><b>6.4h</b>avg reply</div><div><b>91%</b>completion</div></div>
+              <div class="person-style"><div class="lbl">Style preference</div><div class="val">"Detailed. Phone preferred. Different timezone."</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TEAM DETAIL — NICK -->
+        <div id="team-detail-view" style="display: none;">
+          <div class="person-detail">
+            <div class="person-detail-hero">
+              <div class="avatar lg red">ND</div>
+              <div>
+                <div class="name">Nick Delgado</div>
+                <div class="role">Lead Developer · Ads · Data</div>
+                <div class="ch-pref">Channel: <b>Email preferred</b> · Tier: <b>A for tech, B for ads spend</b></div>
+              </div>
+              <div class="actions">
+                <button class="pill-btn">+ Send task</button>
+                <button class="pill-btn">View threads</button>
+                <button class="pill-btn">Edit profile</button>
+              </div>
+            </div>
+            <div class="person-detail-stats">
+              <div class="pds-cell"><div class="num">4</div><div class="lbl">Open tasks</div></div>
+              <div class="pds-cell"><div class="num">3.2h</div><div class="lbl">Avg reply</div></div>
+              <div class="pds-cell"><div class="num">97%</div><div class="lbl">90-day completion</div></div>
+              <div class="pds-cell"><div class="num">42</div><div class="lbl">Tasks last 90d</div></div>
+              <div class="pds-cell"><div class="num">2</div><div class="lbl">Active projects</div></div>
+            </div>
+            <div class="person-detail-grid">
+              <div class="pdg-section">
+                <div class="pdg-title">Responsibilities</div>
+                <div class="resp-list">
+                  <span class="resp-pill">Tracking pixels</span>
+                  <span class="resp-pill">Meta Ads</span>
+                  <span class="resp-pill">Google Ads</span>
+                  <span class="resp-pill">Website code (Vercel)</span>
+                  <span class="resp-pill">Data dashboards</span>
+                  <span class="resp-pill">Reporting integrations</span>
+                  <span class="resp-pill">FareHarbor webhooks</span>
+                </div>
+                <div class="pdg-title">Communication style (learned)</div>
+                <div class="style-block">"Detailed briefs work best. Include code file links from GitHub when relevant. Email preferred for tech tasks — SMS only for urgent. Generally responds within 3-4 hours during work hours, slower after 6pm."</div>
+              </div>
+              <div class="pdg-section">
+                <div class="pdg-title">Recent tasks</div>
+                <div class="recent-task">
+                  <div class="ttl">Fix tracking pixel issue post-Fareharbor migration</div>
+                  <div class="meta"><b>In progress</b> · dispatched 2h ago · responded 8:42 AM</div>
+                </div>
+                <div class="recent-task">
+                  <div class="ttl">M2 of Fareharbor — tracking pixel updates (blocked on M1)</div>
+                  <div class="meta"><b>Waiting</b> · part of project · M1 (Brandon) must finish first</div>
+                </div>
+                <div class="recent-task">
+                  <div class="ttl">Q2 Meta ads campaign performance report</div>
+                  <div class="meta"><b>Done</b> · completed yesterday · 14h cycle time</div>
+                </div>
+                <div class="recent-task">
+                  <div class="ttl">Add new event tracking for night glow tour conversions</div>
+                  <div class="meta"><b>Done</b> · completed Tue · 6h cycle time</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== PROJECTS — list + detail ====== -->
+      <div class="pane" data-pane="projects">
+        <div class="topbar" style="margin: -24px -32px 24px;">
+          <div class="crumb">projects · <b id="proj-crumb">5 active</b></div>
+          <div class="topbar-actions">
+            <button class="pill-btn" id="proj-back" style="display: none;" onclick="closeProjDetail()">← All projects</button>
+            <button class="pill-btn">+ New project</button>
+            <button class="pill-btn">Filter</button>
+          </div>
+        </div>
+
+        <div id="proj-list-view">
+          <div class="pane-head">
+            <h1><em>Five</em> active initiatives.</h1>
+            <div class="sub">Two flagged as risk-elevated. One critical.</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div class="proj-card critical" onclick="openProjDetail('fareharbor')" style="padding: 18px 22px;">
+              <div class="proj-head">
+                <div>
+                  <div class="proj-name" style="font-size: 20px;">Fareharbor migration</div>
+                  <div class="proj-meta">Lead <b>Nick</b> · Target <b>May 15</b> · 8 milestones · <b style="color: var(--red);">CRITICAL</b></div>
+                </div>
+                <div style="display: flex; gap: 8px;"><span class="tag red">1 overdue</span><span class="tag amber">1 blocked</span></div>
+              </div>
+              <div class="proj-bar"><div class="fill" style="width: 38%"></div></div>
+              <div class="proj-bar-meta"><span>3 of 8 milestones · pace -32%</span><span>38%</span></div>
+            </div>
+            <div class="proj-card elevated" style="padding: 18px 22px;">
+              <div class="proj-head">
+                <div>
+                  <div class="proj-name" style="font-size: 20px;">Dallas grand opening</div>
+                  <div class="proj-meta">Lead <b>Richard</b> · Target <b>Jul 4</b> · 9 milestones · <b style="color: var(--amber);">ELEVATED</b></div>
+                </div>
+              </div>
+              <div class="proj-bar"><div class="fill" style="width: 22%"></div></div>
+              <div class="proj-bar-meta"><span>2 of 9 milestones · pace -18%</span><span>22%</span></div>
+            </div>
+            <div class="proj-card" style="padding: 18px 22px;">
+              <div class="proj-head">
+                <div>
+                  <div class="proj-name" style="font-size: 20px;">Q2 marketing campaign</div>
+                  <div class="proj-meta">Lead <b>Josh</b> · Target <b>Jun 1</b> · 6 milestones · <b style="color: var(--green);">NORMAL</b></div>
+                </div>
+              </div>
+              <div class="proj-bar"><div class="fill" style="width: 67%"></div></div>
+              <div class="proj-bar-meta"><span>4 of 6 milestones · on pace</span><span>67%</span></div>
+            </div>
+            <div class="proj-card" style="padding: 18px 22px;">
+              <div class="proj-head">
+                <div>
+                  <div class="proj-name" style="font-size: 20px;">Houston market research</div>
+                  <div class="proj-meta">Lead <b>Brandon</b> · Target <b>Aug 15</b> · 4 milestones · <b style="color: var(--green);">NORMAL</b></div>
+                </div>
+              </div>
+              <div class="proj-bar"><div class="fill" style="width: 25%"></div></div>
+              <div class="proj-bar-meta"><span>1 of 4 milestones · just started</span><span>25%</span></div>
+            </div>
+            <div class="proj-card" style="padding: 18px 22px;">
+              <div class="proj-head">
+                <div>
+                  <div class="proj-name" style="font-size: 20px;">SOP rollout — checkin process</div>
+                  <div class="proj-meta">Lead <b>Joan</b> · Target <b>May 22</b> · 5 milestones · <b style="color: var(--green);">NORMAL</b></div>
+                </div>
+              </div>
+              <div class="proj-bar"><div class="fill" style="width: 80%"></div></div>
+              <div class="proj-bar-meta"><span>4 of 5 milestones · ahead of pace</span><span>80%</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PROJECT DETAIL — Fareharbor -->
+        <div id="proj-detail-view" style="display: none;">
+          <div class="project-detail">
+            <div class="pd-main">
+              <div class="pd-hero">
+                <span class="pd-back" onclick="closeProjDetail()">← All projects</span>
+                <h2>Fareharbor migration</h2>
+                <div class="desc">Migrate booking platform from current provider to FareHarbor. Affects tracking pixels, signage, ops training, reporting integrations, and customer-facing booking flow. End of month target.</div>
+                <div class="pd-hero-meta">
+                  <div>Lead <b>Nick Delgado</b></div>
+                  <div>Target <b>May 15 · 15 days</b></div>
+                  <div>Milestones <b>3 of 8</b></div>
+                  <div class="crit">Risk <b>CRITICAL</b></div>
+                </div>
+              </div>
+              <div class="pd-progress">
+                <div class="pd-progress-bar"><div class="fill" style="width: 38%"></div></div>
+                <div class="pd-progress-meta"><span>Progress <b>38%</b></span><span>Pace <b style="color: var(--red);">-32%</b></span><span>Last activity <b>2h ago</b></span></div>
+              </div>
+              <div class="pd-recommendation">
+                <div class="lbl">Agent recommendation</div>
+                <div class="body">Place phone call to <b>Brandon</b> (M1 contract review) and <b>Tahir</b> (M4 reporting integration). M5 cutover is downstream-blocked on both. Without unblock by Friday, target completion shifts to May 25 minimum.</div>
+              </div>
+
+              <div class="pd-milestones">
+                <div class="h">Milestones · sequenced</div>
+
+                <div class="ms complete">
+                  <div class="seq"><span>1</span></div>
+                  <div>
+                    <div class="ttl">Brandon — contract review (signed)</div>
+                    <div class="meta"><b>Selmen</b> · completed Apr 22 · 4d cycle</div>
+                  </div>
+                  <div class="right"><span class="tag green">complete</span></div>
+                </div>
+
+                <div class="ms overdue">
+                  <div class="seq"><span>!</span></div>
+                  <div>
+                    <div class="ttl">Brandon — contract addendum review (Section 7.2)</div>
+                    <div class="meta"><b>Brandon</b> · was due Apr 28 · <b style="color: var(--red);">2 days overdue</b> · nudged 2x</div>
+                  </div>
+                  <div class="right"><span class="tag red">overdue</span></div>
+                </div>
+
+                <div class="ms in-progress">
+                  <div class="seq"><span>3</span></div>
+                  <div>
+                    <div class="ttl">Nick — tracking pixel updates</div>
+                    <div class="meta"><b>Nick</b> · in progress · started Apr 26 · due May 5</div>
+                  </div>
+                  <div class="right"><span class="tag blue">in progress</span></div>
+                </div>
+
+                <div class="ms in-progress">
+                  <div class="seq"><span>4</span></div>
+                  <div>
+                    <div class="ttl">Orlando — signage and ops training updates</div>
+                    <div class="meta"><b>Orlando</b> · in progress · started Apr 27 · due May 7</div>
+                  </div>
+                  <div class="right"><span class="tag blue">in progress</span></div>
+                </div>
+
+                <div class="ms blocked">
+                  <div class="seq"><span>5</span></div>
+                  <div>
+                    <div class="ttl">Tahir — reporting integration build</div>
+                    <div class="meta"><b>Tahir</b> · <span class="blocked-on">silent 4d 6h · escalated</span> · due May 22</div>
+                  </div>
+                  <div class="right"><span class="tag amber">blocked</span></div>
+                </div>
+
+                <div class="ms">
+                  <div class="seq"><span>6</span></div>
+                  <div>
+                    <div class="ttl">Tahir — testing the integration end-to-end</div>
+                    <div class="meta"><b>Tahir</b> · waiting on M5 · due May 25</div>
+                  </div>
+                  <div class="right"><span class="tag gray">waiting</span></div>
+                </div>
+
+                <div class="ms">
+                  <div class="seq"><span>7</span></div>
+                  <div>
+                    <div class="ttl">Joan — staff training on new booking flow</div>
+                    <div class="meta"><b>Joan</b> · waiting on M3, M4 · due May 12</div>
+                  </div>
+                  <div class="right"><span class="tag gray">waiting</span></div>
+                </div>
+
+                <div class="ms">
+                  <div class="seq"><span>8</span></div>
+                  <div>
+                    <div class="ttl">Cutover and go-live</div>
+                    <div class="meta"><b>Selmen + Nick</b> · waiting on M3-M7 · due May 15</div>
+                  </div>
+                  <div class="right"><span class="tag gray">waiting</span></div>
+                </div>
+
+              </div>
+            </div>
+
+            <aside class="pd-side">
+              <div class="pd-side-card">
+                <h4>Agent observations</h4>
+                <div class="obs-item">
+                  <span class="ts">Apr 30 6:14 AM · daily review</span>
+                  Brandon's silence is now blocking 3 downstream milestones. Recommend phone call rather than another email.
+                </div>
+                <div class="obs-item">
+                  <span class="ts">Apr 29 6:14 AM</span>
+                  Tahir's response time has degraded across all his tasks this week, not just this one. Possible overload — see Insights tab.
+                </div>
+                <div class="obs-item">
+                  <span class="ts">Apr 28 6:14 AM</span>
+                  Pace dropped from -10% to -32% over 48 hours. Risk auto-elevated normal → elevated → critical.
+                </div>
+                <div class="obs-item">
+                  <span class="ts">Apr 22 6:14 AM</span>
+                  M1 closed in 4 days, faster than expected (typical contract review is 5-7 days). Good signal early.
+                </div>
+              </div>
+
+              <div class="pd-side-card">
+                <h4>Recent activity</h4>
+                <div class="activity-item"><span class="ts">2h ago</span><br><b>Nick</b> committed pixel updates (PR #142)</div>
+                <div class="activity-item"><span class="ts">Yesterday</span><br><b>Orlando</b> sent signage proof for review</div>
+                <div class="activity-item"><span class="ts">Yesterday</span><br>Agent sent <b>2nd nudge to Tahir</b> · no response</div>
+                <div class="activity-item"><span class="ts">Apr 28</span><br>Risk auto-elevated to <b>CRITICAL</b></div>
+                <div class="activity-item"><span class="ts">Apr 26</span><br><b>Tahir</b> acknowledged M5 dispatch</div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== INSIGHTS — with sub-tabs ====== -->
+      <div class="pane" data-pane="insights">
+        <div class="topbar" style="margin: -24px -32px 24px;">
+          <div class="crumb">insights · <b>weekly run · Sunday Apr 27</b></div>
+          <div class="topbar-actions">
+            <button class="pill-btn">Run now</button>
+            <button class="pill-btn">Settings</button>
+          </div>
+        </div>
+        <div class="pane-head">
+          <h1>The agent <em>noticed</em> five things.</h1>
+          <div class="sub">Approve to apply. Dismiss to ignore. Snooze to revisit.</div>
+        </div>
+
+        <div class="insight-tabs">
+          <div class="ins-tab active" onclick="switchInsTab('weekly', this)">Weekly</div>
+          <div class="ins-tab" onclick="switchInsTab('monthly', this)">Monthly strategy</div>
+          <div class="ins-tab" onclick="switchInsTab('sops', this)">SOPs · 12</div>
+          <div class="ins-tab" onclick="switchInsTab('settings', this)">Settings</div>
+        </div>
+
+        <div id="ins-weekly" class="ins-pane" style="display: block;">
+          <div class="insight-card">
+            <div class="insight-head">
+              <div class="insight-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+              <div class="insight-meta-r">
+                <div class="insight-type">Overload warning · 0.94 confidence</div>
+                <div class="insight-title">Tahir's open task count is 8 — his 90-day average is 4. Avg reply degraded 4h → 18h.</div>
+              </div>
+            </div>
+            <div class="insight-body">Three of his open tasks could be reassigned. Reporting work is in his lane, but the chargeback queue and the field-signage proofread could route to Joan and Orlando respectively.</div>
+            <div class="insight-evidence"><b>Evidence:</b> 8 open tasks (avg 4) · 18h avg reply (avg 4h) · 2 escalations raised this week (avg 0.5)</div>
+            <div class="insight-actions">
+              <button class="pill-btn primary">Approve · reassign</button>
+              <button class="pill-btn">Dismiss</button>
+              <button class="pill-btn">Snooze 7d</button>
+            </div>
+          </div>
+
+          <div class="insight-card">
+            <div class="insight-head">
+              <div class="insight-icon green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+              <div class="insight-meta-r">
+                <div class="insight-type">SOP candidate · 0.88 confidence</div>
+                <div class="insight-title">You've delegated weekly inventory checks to Joan 4 times in 6 weeks.</div>
+              </div>
+            </div>
+            <div class="insight-body">Each instance dispatched slightly differently. Standardizing it means future Sundays auto-dispatch with consistent format and Joan knows what to expect.</div>
+            <div class="insight-actions">
+              <button class="pill-btn primary">Approve · create SOP</button>
+              <button class="pill-btn">Edit first</button>
+              <button class="pill-btn">Dismiss</button>
+            </div>
+          </div>
+
+          <div class="insight-card">
+            <div class="insight-head">
+              <div class="insight-icon amber"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
+              <div class="insight-meta-r">
+                <div class="insight-type">Style preference · 0.91 confidence</div>
+                <div class="insight-title">You've shortened drafts to Orlando 5 times this month — average 28 words → 12 words.</div>
+              </div>
+            </div>
+            <div class="insight-body">Default to terse for Orlando? I'll update his communication_style to "terse, max ~12 words target."</div>
+            <div class="insight-actions">
+              <button class="pill-btn primary">Approve · update style</button>
+              <button class="pill-btn">Dismiss</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="ins-monthly" class="ins-pane" style="display: none;">
+          <div class="insight-card" style="background: var(--bg-2);">
+            <div style="font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">Monthly run · Apr 1 · Strategic synthesis</div>
+            <h3 style="font-family: var(--display); font-size: 24px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 14px;">April was your busiest month yet. Three patterns matter.</h3>
+            <div style="font-size: 13.5px; color: var(--ink-2); line-height: 1.65; margin-bottom: 18px;">Volume up 34% vs March. Closure rate held at 91%, which is impressive given growth. But Tahir's load is unsustainable — he handled 41% more this month while the rest of the team handled 28%. Recommend rebalancing his queue.</div>
+            <div style="margin-top: 16px;"><span class="tag green">trend ↑ growth</span> <span class="tag amber">capacity issue</span> <span class="tag blue">workflow opportunity</span></div>
+          </div>
+
+          <div class="insight-card">
+            <div class="insight-head">
+              <div class="insight-icon amber"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+              <div class="insight-meta-r">
+                <div class="insight-type">Capacity trend · April</div>
+                <div class="insight-title">Tahir handled 41% more volume in April — vs 28% across the rest of the team.</div>
+              </div>
+            </div>
+            <div class="insight-body">If this continues, expect rate-of-completion drop in May. Recommend explicit redistribution: chargeback queue → Kathy or Joan; signage proofreads → Orlando.</div>
+          </div>
+
+          <div class="insight-card">
+            <div class="insight-head">
+              <div class="insight-icon blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></div>
+              <div class="insight-meta-r">
+                <div class="insight-type">Workflow · April</div>
+                <div class="insight-title">Tier B drafts to vendors auto-approved in 92% of cases — consider promoting routine vendor responses to Tier A.</div>
+              </div>
+            </div>
+            <div class="insight-body">Nearly all Tier B routine vendor replies (delivery confirmations, invoice acknowledgments) approved as drafted. Ten minutes/week of approval friction. Worth a Tier A path?</div>
+          </div>
+        </div>
+
+        <div id="ins-sops" class="ins-pane" style="display: none;">
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+            <div class="insight-card" style="margin-bottom: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                <div>
+                  <div style="font-family: var(--mono); font-size: 10px; color: var(--green); text-transform: uppercase; letter-spacing: 0.08em;">Active · v2</div>
+                  <div style="font-size: 14px; font-weight: 600; margin-top: 3px;">Weekly inventory check — Joan</div>
+                </div>
+                <div style="font-family: var(--mono); font-size: 10px; color: var(--ink-3);">used <b style="color: var(--ink);">8x</b></div>
+              </div>
+              <div style="font-size: 12px; color: var(--ink-3); line-height: 1.5;">Sundays at 6 PM, dispatch a checklist to Joan covering ATV count, fuel levels, signage condition, kit completeness. SMS, terse format.</div>
+            </div>
+
+            <div class="insight-card" style="margin-bottom: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                <div>
+                  <div style="font-family: var(--mono); font-size: 10px; color: var(--green); text-transform: uppercase; letter-spacing: 0.08em;">Active · v1</div>
+                  <div style="font-size: 14px; font-weight: 600; margin-top: 3px;">Booking confirmation auto-ack</div>
+                </div>
+                <div style="font-family: var(--mono); font-size: 10px; color: var(--ink-3);">used <b style="color: var(--ink);">142x</b></div>
+              </div>
+              <div style="font-size: 12px; color: var(--ink-3); line-height: 1.5;">FareHarbor booking notifications get auto-archived after summarizing into morning brief. Tier A — applies to all bookings under $1000 deposit.</div>
+            </div>
+
+            <div class="insight-card" style="margin-bottom: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                <div>
+                  <div style="font-family: var(--mono); font-size: 10px; color: var(--green); text-transform: uppercase; letter-spacing: 0.08em;">Active · v1</div>
+                  <div style="font-size: 14px; font-weight: 600; margin-top: 3px;">Influencer outreach — Oscar</div>
+                </div>
+                <div style="font-family: var(--mono); font-size: 10px; color: var(--ink-3);">used <b style="color: var(--ink);">3x</b></div>
+              </div>
+              <div style="font-size: 12px; color: var(--ink-3); line-height: 1.5;">When verified influencer (>50K followers, travel/adventure niche) inquires about collab: draft enthusiastic reply + spawn Oscar task with influencer rate (50% off 4 vehicles), golden hour slot, crew vehicle access.</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="ins-settings" class="ins-pane" style="display: none;">
+          <div class="settings-grid">
+            <div class="settings-card">
+              <h3>Schedule generation</h3>
+              <div class="desc">When and how the agent builds your daily schedule.</div>
+              <div class="setting-row">
+                <div><div class="lbl">Generate schedule at</div><div class="sub">First brain dump or before this time, whichever first</div></div>
+                <span class="select-pill">7:00 AM</span>
+              </div>
+              <div class="setting-row">
+                <div><div class="lbl">Default work day</div><div class="sub">When schedule blocks can land</div></div>
+                <span class="select-pill">8:30 AM – 5:30 PM</span>
+              </div>
+              <div class="setting-row">
+                <div><div class="lbl">Auto-reflow on slip</div><div class="sub">If you fall behind, agent reorders the rest of the day</div></div>
+                <div class="toggle-sw on"></div>
+              </div>
+              <div class="setting-row">
+                <div><div class="lbl">Reserve buffer block</div><div class="sub">Last hour kept flex for whatever drifted</div></div>
+                <div class="toggle-sw on"></div>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <h3>Linked actions (reply + spawn task)</h3>
+              <div class="desc">When email implies team work, suggest both at once.</div>
+              <div class="setting-row">
+                <div><div class="lbl">Auto-detect spawn opportunities</div><div class="sub">Influencer asks · vendor outreach · partner follow-ups</div></div>
+                <div class="toggle-sw on"></div>
+              </div>
+              <div class="setting-row">
+                <div><div class="lbl">Confidence threshold</div><div class="sub">Below this, just draft the reply</div></div>
+                <span class="select-pill">0.75</span>
+              </div>
+              <div class="setting-row">
+                <div><div class="lbl">Default to coupled approval</div><div class="sub">One tap approves both. Toggle off for split-by-default</div></div>
+                <div class="toggle-sw on"></div>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <h3>Weekly insights run</h3>
+              <div class="desc">Pattern detection across the past week.</div>
+              <div class="setting-row">
+                <div><div class="lbl">Run schedule</div><div class="sub">Default Sundays</div></div>
+                <span class="select-pill">Sun 6:00 PM</span>
+              </div>
+              <div class="setting-row">
+                <div><div class="lbl">Surface threshold</div><div class="sub">Min confidence to show in pending</div></div>
+                <span class="select-pill">0.80</span>
+              </div>
+              <div class="setting-row">
+                <div><div class="lbl">Pending insight expiry</div><div class="sub">Auto-snooze if not actioned</div></div>
+                <span class="select-pill">14 days</span>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <h3>Monthly strategy run</h3>
+              <div class="desc">Cross-cutting operational synthesis.</div>
+              <div class="setting-row">
+                <div><div class="lbl">Run schedule</div><div class="sub">First Monday of month</div></div>
+                <span class="select-pill">Mon 9:00 AM</span>
+              </div>
+              <div class="setting-row">
+                <div><div class="lbl">Include team temperature</div><div class="sub">Per-person 1-line read · private to you</div></div>
+                <div class="toggle-sw on"></div>
+              </div>
+              <div class="setting-row">
+                <div><div class="lbl">Add to morning brief</div><div class="sub">Month-in-review surfaces in first brief of month</div></div>
+                <div class="toggle-sw on"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- MOBILE -->
+<!-- ============================================================== -->
+<div class="frame mobile" id="frame-mobile">
+  <div class="phone-screen">
+    <div class="notch"></div>
+    <div class="status-bar">
+      <span>9:41</span>
+      <div class="right">
+        <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor"><rect x="0" y="6" width="2" height="4"/><rect x="4" y="4" width="2" height="6"/><rect x="8" y="2" width="2" height="8"/><rect x="12" y="0" width="2" height="10"/></svg>
+        <span>92</span>
+      </div>
+    </div>
+
+    <div class="phone-app" id="phone-app">
+
+      <!-- mobile TODAY -->
+      <div class="m-pane active" data-mpane="today">
+        <div class="m-header">
+          <h1>Today</h1>
+          <div class="icons">
+            <div class="m-iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+          </div>
+        </div>
+        <div class="m-greet">
+          <div class="day">Thursday Apr 30 · 8:42 AM</div>
+          <div class="name">Morning, Selmen.</div>
+        </div>
+
+        <!-- MOBILE SCHEDULE -->
+        <div class="m-schedule">
+          <div class="head">
+            <div>
+              <div class="lbl">Schedule</div>
+              <h2>The day, ordered.</h2>
+            </div>
+            <div class="meta-r"><b>6h 20m</b>focus</div>
+          </div>
+
+          <div class="m-sblock now flex">
+            <div class="timecol"><b>8:30</b><div class="dur">30m · NOW</div></div>
+            <div class="body-c">
+              <div class="marker"></div>
+              <div>
+                <div class="ttl">Morning brief review</div>
+                <div class="desc">Read brief, scan awaiting, set the day.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="m-sblock fixed">
+            <div class="timecol"><b>9:30</b><div class="dur">15m</div></div>
+            <div class="body-c">
+              <div class="marker"></div>
+              <div>
+                <div class="ttl">Approve 4 Tier B drafts</div>
+                <div class="desc">Brandon · group reschedule · Meta · TravelDom (linked)</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="m-sblock fixed">
+            <div class="timecol"><b>11:00</b><div class="dur">20m</div></div>
+            <div class="body-c">
+              <div class="marker"></div>
+              <div>
+                <div class="ttl">Phone call · Brandon</div>
+                <div class="desc">Push contract review on Fareharbor.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="m-sblock deep">
+            <div class="timecol"><b>11:30</b><div class="dur">90m</div></div>
+            <div class="body-c">
+              <div class="marker"></div>
+              <div>
+                <div class="ttl">Deep work · Q2 marketing review</div>
+                <div class="desc">Josh's draft. 3-pager. Sign-off needed.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="m-sblock fixed">
+            <div class="timecol"><b>1:00</b><div class="dur">45m</div></div>
+            <div class="body-c">
+              <div class="marker"></div>
+              <div>
+                <div class="ttl">Lunch · buffer</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="m-sblock flex">
+            <div class="timecol"><b>2:00</b><div class="dur">30m</div></div>
+            <div class="body-c">
+              <div class="marker"></div>
+              <div>
+                <div class="ttl">Sign Karina's brokerage docs</div>
+                <div class="desc">DocuSign link in inbox.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="m-sblock fixed">
+            <div class="timecol"><b>3:00</b><div class="dur">60m</div></div>
+            <div class="body-c">
+              <div class="marker"></div>
+              <div>
+                <div class="ttl">Weekly sync · Nick + Oscar</div>
+                <div class="desc">Calendar invite. Prep ready.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="m-sblock flex">
+            <div class="timecol"><b>4:30</b><div class="dur">60m</div></div>
+            <div class="body-c">
+              <div class="marker"></div>
+              <div>
+                <div class="ttl">Buffer · clear remaining</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="m-brief">
+          <div class="lbl">Morning brief</div>
+          <h2>Tahir hasn't replied on Fareharbor reporting. Brandon is silent on contract — that's the unblock. New: TravelDom influencer collab worth taking.</h2>
+          <div class="meta">
+            <div><b>3</b>awaiting</div>
+            <div><b>2</b>at risk</div>
+            <div><b>12</b>in flight</div>
+          </div>
+        </div>
+
+        <div class="m-section-title"><h3>Awaiting reply</h3><span class="more">3 →</span></div>
+        <div class="m-list">
+          <div class="m-awaiting critical">
+            <div class="m-aw-row">
+              <div><div class="who">Tahir</div><div class="what">Fareharbor reporting · nudged 2x</div></div>
+              <div class="age"><b>4d 6h</b>silent</div>
+            </div>
+          </div>
+          <div class="m-awaiting elevated">
+            <div class="m-aw-row">
+              <div><div class="who">Brandon</div><div class="what">Contract review · first nudge</div></div>
+              <div class="age"><b>2d 1h</b>silent</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="m-section-title"><h3>Projects at risk</h3><span class="more">2 →</span></div>
+        <div class="m-proj critical">
+          <h4>Fareharbor migration</h4>
+          <div class="m-proj-meta">Lead Nick · Target May 15 · CRITICAL</div>
+          <div class="m-proj-bar"><div class="fill" style="width: 38%"></div></div>
+          <div class="m-proj-bar-meta"><span>3 of 8 · 1 overdue</span><span>38%</span></div>
+        </div>
+        <div class="m-proj elevated">
+          <h4>Dallas grand opening</h4>
+          <div class="m-proj-meta">Lead Richard · Target Jul 4 · ELEVATED</div>
+          <div class="m-proj-bar"><div class="fill" style="width: 22%"></div></div>
+          <div class="m-proj-bar-meta"><span>2 of 9 · pace -18%</span><span>22%</span></div>
+        </div>
+      </div>
+
+      <!-- mobile TALK -->
+      <div class="m-pane" data-mpane="talk">
+        <div class="m-header"><h1>Talk</h1></div>
+        <div class="m-talk">
+          <div class="m-msgs">
+            <div class="m-msg user">
+              <div class="bubble">Have Nick fix the tracking pixel issue — it's been off since the Fareharbor migration started</div>
+              <div class="ts">8:14 AM · voice · 8s</div>
+            </div>
+            <div class="m-msg agent">
+              <div class="bubble">Sent Nick a detailed email with the GitHub link to /api/tracking/pixel.ts. Tier A — internal team, routine task. He typically replies within 3 hours.</div>
+              <div class="ts">8:14 AM</div>
+            </div>
+          </div>
+          <div class="m-talk-input-wrap">
+            <div class="talk-input" style="background: var(--bg-1);">
+              <input type="text" placeholder="Brain dump…" />
+              <button class="voice-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- mobile APPROVALS — with linked pair -->
+      <div class="m-pane" data-mpane="approvals">
+        <div class="m-header"><h1>Approvals</h1></div>
+        <div class="m-section-caption">4 pending · 1 linked pair · Tier B</div>
+
+        <div style="padding: 0 22px; display: flex; flex-direction: column; gap: 10px;">
+
+          <!-- LINKED PAIR -->
+          <div class="m-approval linked">
+            <div class="m-linked-banner">
+              <div class="ic"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+              <div class="text">Linked · reply + task</div>
+            </div>
+
+            <div class="m-linked-side">
+              <div class="step-h"><span class="step">1</span> Outbound reply</div>
+              <h4>Re: Influencer collab — TravelDom</h4>
+              <div class="recip">To Sofia Méndez · 820k IG</div>
+              <div class="draft-mini">Hey Sofia — yes, we'd love to host you. The day glow tour is our most photogenic. Looping in Oscar to set up date, group rate, logistics…</div>
+            </div>
+
+            <div class="m-linked-side">
+              <div class="step-h"><span class="step">2</span> Spawned task</div>
+              <h4>Set up TravelDom promo tour</h4>
+              <div class="recip">To Oscar · sales · SMS</div>
+              <div class="draft-mini">Brief: TravelDom (Sofia, 820K IG) wants content shoot. Day glow. Apply influencer rate, golden hour slot, crew vehicle access. Loop Josh for cross-promo…</div>
+            </div>
+
+            <div class="m-approval-actions">
+              <button class="purple">✓ Both</button>
+              <button>Edit</button>
+              <button>Split</button>
+            </div>
+          </div>
+
+          <div class="m-approval">
+            <div style="padding: 14px;">
+              <div class="m-approval-head">
+                <div>
+                  <div class="ch">Email · sel@takeoversrentals.com</div>
+                  <h4>Re: Fareharbor — contract review</h4>
+                  <div class="recip">To Brandon Lherisson</div>
+                </div>
+                <div class="tier-badge">B</div>
+              </div>
+              <div class="draft">Hey Brandon — quick one. Moving forward on the Fareharbor migration. Need contract review before we sign. 5-day target.</div>
+              <div class="m-approval-actions">
+                <button class="primary">✓ Send</button>
+                <button>Edit</button>
+                <button>Reject</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="m-approval">
+            <div style="padding: 14px;">
+              <div class="m-approval-head">
+                <div>
+                  <div class="ch">SMS · Twilio</div>
+                  <h4>Reschedule — group of 18</h4>
+                  <div class="recip">To Maria Gonzalez</div>
+                </div>
+                <div class="tier-badge">B</div>
+              </div>
+              <div class="draft">Hi Maria — confirming we moved your group from Sat 9pm to 10pm glow tour, same property, same rate. Reply YES to confirm.</div>
+              <div class="m-approval-actions">
+                <button class="primary">✓ Send</button>
+                <button>Edit</button>
+                <button>Reject</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- mobile INBOX with linked indicator -->
+      <div class="m-pane" data-mpane="inbox">
+        <div class="m-header">
+          <h1>Inbox</h1>
+        </div>
+        <div class="m-acct-tabs">
+          <div class="m-acct-tab active">SEL · 5</div>
+          <div class="m-acct-tab">HUB · 2</div>
+          <div class="m-acct-tab">PERSONAL 🔒</div>
+        </div>
+        <div class="m-email-list">
+          <div class="m-email linked">
+            <div class="top">
+              <div class="from">Sofia Méndez · TravelDom</div>
+              <div class="time">11:42 PM</div>
+            </div>
+            <div class="subj">Influencer collab — content shoot</div>
+            <div class="snippet">Hi Selmen, I run TravelDom on Instagram (820k followers). Was at your property last weekend — your glow tours…</div>
+            <div class="badges"><span class="tag purple">linked: reply + task</span><span class="tag amber">draft</span></div>
+          </div>
+          <div class="m-email">
+            <div class="top"><div class="from">Brandon Lherisson</div><div class="time">8:21 AM</div></div>
+            <div class="subj">Re: Fareharbor — contract review</div>
+            <div class="snippet">Sel — caught up. Read the contract. Section 7.2 is concerning…</div>
+            <div class="badges"><span class="tag amber">draft ready</span></div>
+          </div>
+          <div class="m-email">
+            <div class="top"><div class="from">Karina Alvarez</div><div class="time">7:33 AM</div></div>
+            <div class="subj">Brokerage referral — needs sig</div>
+            <div class="snippet">The docs from yesterday are ready for sig. Just need DocuSign.</div>
+            <div class="badges"><span class="tag red">tier C</span></div>
+          </div>
+          <div class="m-email">
+            <div class="top"><div class="from">Oscar Rivera</div><div class="time">7:42 AM</div></div>
+            <div class="subj">Saturday group of 18 — confirmed</div>
+            <div class="snippet">Got it handled. Moved to 10pm. Maria confirmed.</div>
+            <div class="badges"><span class="tag green">auto-acked</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- mobile INSIGHTS -->
+      <div class="m-pane" data-mpane="insights">
+        <div class="m-header"><h1>Insights</h1></div>
+        <div class="m-section-caption">Weekly · Apr 27 · 5 pending</div>
+
+        <div class="m-insight">
+          <div class="m-insight-head">
+            <div class="m-insight-icon" style="background: var(--red-soft); color: var(--red);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            </div>
+            <div>
+              <div class="m-insight-type">Overload · 0.94</div>
+              <div class="m-insight-title">Tahir's open count is 8 (avg 4). Reply 4h → 18h.</div>
+            </div>
+          </div>
+          <div class="m-insight-body">3 of his open tasks could reassign. Want me to draft reassignment dispatches?</div>
+          <div class="m-insight-actions">
+            <button class="primary">✓ Approve</button>
+            <button>Snooze</button>
+            <button>Dismiss</button>
+          </div>
+        </div>
+
+        <div class="m-insight">
+          <div class="m-insight-head">
+            <div class="m-insight-icon" style="background: var(--green-soft); color: var(--green);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="14 2 14 8 20 8"/><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+            </div>
+            <div>
+              <div class="m-insight-type">SOP candidate · 0.88</div>
+              <div class="m-insight-title">Weekly inventory checks → Joan 4× in 6 weeks.</div>
+            </div>
+          </div>
+          <div class="m-insight-body">Each instance dispatched differently. Standardize?</div>
+          <div class="m-insight-actions">
+            <button class="primary">✓ Approve</button>
+            <button>Edit</button>
+            <button>Dismiss</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="m-bottom">
+      <div class="m-tab active" onclick="setMTab('today', this)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span>Today</span>
+      </div>
+      <div class="m-tab" onclick="setMTab('approvals', this)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Approve</span>
+      </div>
+      <div class="m-tab center" onclick="setMTab('talk', this)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        <span>Talk</span>
+      </div>
+      <div class="m-tab" onclick="setMTab('inbox', this)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+        <span>Inbox</span>
+      </div>
+      <div class="m-tab" onclick="setMTab('insights', this)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span>Insights</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- DESIGN NOTES -->
+<div class="design-notes">
+  <span class="lbl">Mockup v2 changelog</span>
+  <h2>What changed and why</h2>
+  <div class="sub">Updates from v1 · April 30</div>
+
+  <div class="grid">
+    <div class="note">
+      <h3>Today is now schedule-first</h3>
+      <p>Left column leads with a time-blocked schedule (8:30 AM → 5:30 PM) showing exactly what to work on, in what order, for how long. Color-coded markers: red = fixed, blue = flex, purple = deep work, green = in progress. The schedule earns the prime real estate because that's the question you're asking at 8 AM.</p>
+    </div>
+    <div class="note">
+      <h3>Block types carry meaning</h3>
+      <p>Each block shows: time, duration, title, one-line description, and tags (tier C / draft ready / linked / etc). You can see at a glance which blocks only YOU can do (red Tier C tags) vs which are review-style work (blue draft ready).</p>
+    </div>
+    <div class="note">
+      <h3>Reflow on slip</h3>
+      <p>"Reflow schedule" button at the top. If you fall behind, the agent reorders the rest of the day instead of leaving you with a stale plan. Buffer block at end of day absorbs drift. Configurable in Insights settings.</p>
+    </div>
+    <div class="note">
+      <h3>Linked actions: reply + spawn</h3>
+      <p>The TravelDom influencer email is the canonical example. Agent detects "this email implies team work" and surfaces both a reply draft AND a spawned task for Oscar — with full brief, rate sheet context, and clear next steps. Approve both with one tap, edit either side, or split.</p>
+    </div>
+    <div class="note">
+      <h3>Linked is visually distinct</h3>
+      <p>Purple is the new color reserved for linked/coupled actions. Purple banner across the top of the approval card. Purple left border on the spawning email in the inbox. Purple chip in tags. Easy to spot, never confused with a regular Tier B draft.</p>
+    </div>
+    <div class="note">
+      <h3>Project detail shows everything</h3>
+      <p>Click a project from the list and you get: hero with description and meta, progress bar with pace, agent recommendation in red callout, fully sequenced milestone list with status (complete / in-progress / overdue / blocked / waiting), agent observations sidebar, and recent activity feed. The Fareharbor migration tells its own story when laid out this way.</p>
+    </div>
+    <div class="note">
+      <h3>Team detail has substance</h3>
+      <p>Click into Nick: hero with channel preference, 5 stats (open / avg reply / completion / total / projects), responsibilities list, learned style block, and recent task history. This is how you'd reload context before sending him something important.</p>
+    </div>
+    <div class="note">
+      <h3>Insights has 4 sub-tabs</h3>
+      <p>Weekly (the pattern detections) · Monthly (cross-cutting strategy synthesis with month-in-review) · SOPs (active library with usage counts) · Settings (schedule timing, linked-action thresholds, run cadences, etc).</p>
+    </div>
+    <div class="note">
+      <h3>Schedule on mobile is glanceable</h3>
+      <p>Mobile schedule shows the same day with tighter density — time column, color marker, title, description. Same color logic. NOW block highlighted in green. Scrollable inside the daily card without taking over the whole screen.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const fd = document.getElementById('frame-desktop');
+  const fm = document.getElementById('frame-mobile');
+
+  function setView(v) {
+    document.querySelectorAll('.toggle button').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    if (v === 'both') { fd.style.display = 'block'; fm.style.display = 'block'; }
+    if (v === 'desktop') { fd.style.display = 'block'; fm.style.display = 'none'; }
+    if (v === 'mobile') { fd.style.display = 'none'; fm.style.display = 'block'; }
+  }
+
+  function setTab(name, el) {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+    document.querySelector(`[data-pane="${name}"]`).classList.add('active');
+    document.querySelector('.frame.desktop .url b').textContent = '/' + name;
+    // reset detail views
+    closeTeamDetail();
+    closeProjDetail();
+  }
+
+  function setMTab(name, el) {
+    document.querySelectorAll('.m-tab').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.m-pane').forEach(p => p.classList.remove('active'));
+    const target = document.querySelector(`[data-mpane="${name}"]`);
+    if (target) target.classList.add('active');
+    document.getElementById('phone-app').scrollTop = 0;
+  }
+
+  function openTeamDetail(name) {
+    document.getElementById('team-list-view').style.display = 'none';
+    document.getElementById('team-detail-view').style.display = 'block';
+    document.getElementById('team-back').style.display = 'block';
+    document.getElementById('team-crumb').textContent = 'Nick Delgado';
+    document.querySelector('.frame.desktop .url b').textContent = '/team/nick';
+  }
+  function closeTeamDetail() {
+    document.getElementById('team-list-view').style.display = 'block';
+    document.getElementById('team-detail-view').style.display = 'none';
+    document.getElementById('team-back').style.display = 'none';
+    document.getElementById('team-crumb').textContent = '11 members';
+  }
+
+  function openProjDetail(name) {
+    document.getElementById('proj-list-view').style.display = 'none';
+    document.getElementById('proj-detail-view').style.display = 'block';
+    document.getElementById('proj-back').style.display = 'block';
+    document.getElementById('proj-crumb').textContent = 'Fareharbor migration';
+    document.querySelector('.frame.desktop .url b').textContent = '/projects/fareharbor';
+  }
+  function closeProjDetail() {
+    document.getElementById('proj-list-view').style.display = 'block';
+    document.getElementById('proj-detail-view').style.display = 'none';
+    document.getElementById('proj-back').style.display = 'none';
+    document.getElementById('proj-crumb').textContent = '5 active';
+  }
+
+  function switchInsTab(tab, el) {
+    document.querySelectorAll('.ins-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.ins-pane').forEach(p => p.style.display = 'none');
+    document.getElementById('ins-' + tab).style.display = 'block';
+  }
+</script>
+
+</body>
+</html>

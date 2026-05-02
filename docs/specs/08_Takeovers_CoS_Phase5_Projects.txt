@@ -1,0 +1,463 @@
+TAKEOVERS CHIEF OF STAFF
+Phase 5
+Projects
+Document 08 of 13
+Estimated build time: 2 weeks
+Outcome: Multi-step initiatives are tracked structurally — milestones, owners, dependencies, risks.
+
+Phase Goal
+Phase 4 prevents Fareharbor-style fires at the task level — silence on a single task escalates. Phase 5 prevents them at the project level — multi-step initiatives get planned, tracked structurally, and watched for systemic risk before any single task is even due.
+A project is a coherent multi-step effort with milestones, owners, dependencies, and a target completion. The Fareharbor migration would have been a project. The Dallas grand opening is a project. A new SOP rollout is a project. The agent's job is to detect when something is a project, propose the structure, and then track it as one — so that even if individual tasks haven't yet missed deadlines, the agent can spot "this initiative is at risk" and surface it.
+This is also where the agent starts to feel like a real Chief of Staff rather than just a task router. Project-level thinking is a different mode of operation.
+What you can do at the end of Phase 5:
+	•	Brain-dump a multi-step initiative — agent detects it as a project and proposes structure
+	•	Approve, edit, or reject the proposed structure
+	•	View all active projects in the Projects tab with progress, owners, risk status
+	•	Drill into a project to see milestones, dependencies, recent activity, agent observations
+	•	Receive proactive risk alerts when a project drifts off-track
+	•	Have the daily brief flag projects at risk before any task explicitly fails
+What is explicitly NOT in this phase:
+	•	No Gantt charts or visual timeline UI (consider in v2)
+	•	No external sharing of project views with partners (security/scope concern)
+	•	No automated re-planning when a milestone slips (agent surfaces the slip; replan is human decision)
+	•	No project templates yet (Phase 6 learning generates these from observed patterns)
+
+1. What Counts as a Project
+Not every task should become a project. The overhead of project structure is only worth it for genuinely multi-step efforts.
+Heuristics for project detection
+During capture, Claude evaluates whether the input describes a project. Triggers:
+	•	Three or more distinct sub-asks in one brain-dump
+	•	Mention of multiple team members needing to coordinate
+	•	A timeline longer than 2 weeks
+	•	Words like "migration", "launch", "rollout", "opening", "campaign", "transition"
+	•	Reference to dependencies ("after X, then Y", "before we can launch", "once Y is done")
+	•	Operational scope ("new location", "new system", "end-to-end")
+What stays a single task
+	•	Single ask to a single person
+	•	Routine operational work
+	•	Items completable in under a few days
+	•	Items without dependencies
+Edge cases
+If detection is ambiguous, default to single task. Selmen can promote a task to a project later from the Today tab. Better to under-promote than to spam project structure on routine work.
+In the first month of Phase 5 production, expect 3-5 active projects at any time, not 30. The Projects tab is meant to feel curated, not noisy. If it gets noisy, tune detection to be more conservative.
+
+2. Project Detection & Proposal Flow
+2.1 During capture
+	•	Selmen brain-dumps something that looks project-shaped
+	•	Claude's capture parser returns type='project' with proposed structure
+	•	Agent surfaces the proposal in the Talk tab: "This sounds like a project. Want me to plan it out?"
+	•	Selmen can: Yes (proceed to plan), No (treat as task), or Edit before approving
+2.2 Project planning prompt
+When Selmen says yes, the agent runs a planning prompt against Claude Opus (this is one of the few places where Opus is worth the cost):
+SYSTEM:
+You are planning a project for Selmen Hassen, CEO of Takeovers Rentals.
+
+Selmen brain-dumped: "{capture_text}"
+
+Available team members and their responsibilities:
+{team_members_with_responsibilities_json}
+
+Your job: propose a structured project plan with milestones,
+suggested owners, dependencies, and a target completion date.
+
+Each milestone should be:
+  - Clear and concrete (something with a definite 'done' state)
+  - Owned by exactly one team member (the one most aligned to the work)
+  - Sequenced via dependencies where order matters
+  - Sized for completion within ~5 days each
+
+Identify risks proactively. What could go wrong? What's outside
+the team's control? Who needs to coordinate?
+
+Return JSON:
+{
+  "project": {
+    "name": "short name, max 100 chars",
+    "description": "what this project is and why it matters",
+    "target_completion": "ISO date",
+    "lead": "team_member name (the one most accountable)",
+    "risk_level": "low" | "normal" | "elevated" | "critical",
+    "risk_notes": "why risk is what it is"
+  },
+  "milestones": [
+    {
+      "sequence": 1,
+      "title": "short title",
+      "description": "what's done when this is done",
+      "proposed_owner": "team_member name",
+      "proposed_due": "ISO date",
+      "depends_on": [list of milestone sequence numbers],
+      "reasoning": "why this owner, why this date"
+    },
+    ...
+  ],
+  "observations": [
+    "agent observations about risk, coordination, or scope"
+  ]
+}
+2.3 Proposal review UI
+After Claude returns the plan, the PWA shows a project preview screen:
+	•	Project name, description, target date, lead — editable inline
+	•	Risk level badge with explanation
+	•	Milestones list — each row showing sequence, title, owner, due date, dependencies
+	•	Per-milestone edit (change owner, due date, description) or delete
+	•	Add milestone button
+	•	Reorder milestones via drag
+	•	Agent observations section — risks and coordination notes the agent flagged
+	•	"Approve and create" button at the bottom
+2.4 On approval
+	•	Insert projects row
+	•	Insert tasks rows for each milestone, linked via project_id
+	•	Apply depends_on array on each task
+	•	Send dispatches per Phase 2 logic — but only for milestones with no unmet dependencies
+	•	Schedule downstream milestone dispatches to fire automatically when their dependencies complete
+	•	Project surfaces in Projects tab as 'active'
+
+3. Dependency-Aware Dispatch
+In Phase 2, every captured task gets dispatched immediately. In Phase 5, tasks tied to a project respect dependencies.
+3.1 Dispatch eligibility
+A task with project_id and depends_on is dispatched only when ALL tasks in depends_on are 'complete'.
+3.2 Sequenced dispatch flow
+	•	Project created with 5 milestones (M1, M2, M3, M4, M5)
+	•	M1 has no dependencies → dispatched immediately
+	•	M2 depends on [M1], M3 depends on [M1], M4 depends on [M2, M3], M5 depends on [M4] → all wait
+	•	Team member completes M1, replies 'done', task status → complete
+	•	Trigger fires: re-evaluate downstream dependencies
+	•	M2 and M3 are now eligible → dispatched (in parallel since no inter-dependency between them)
+	•	M4 still waits because both M2 and M3 must complete first
+	•	Continue until all milestones complete → project status → complete
+3.3 What happens when a milestone slips
+	•	Phase 4 chase logic still applies at the milestone level (nudges, escalation)
+	•	Phase 5 adds project-level: if a milestone slips significantly, the project's risk_level may auto-elevate
+	•	Downstream milestones whose dependencies are slipping get a 'blocked-upstream' indicator
+	•	Selmen can manually unblock a downstream milestone ("start it anyway") if priorities shift
+3.4 Pseudocode for dependency check
+async function checkDispatchEligibility(task) {
+  if (!task.depends_on || task.depends_on.length === 0) {
+    return { eligible: true };
+  }
+
+  const dependencies = await db.select()
+    .from(tasks)
+    .where(inArray(tasks.id, task.depends_on));
+
+  const allComplete = dependencies.every(d => d.status === 'complete');
+  if (allComplete) return { eligible: true };
+
+  const blockers = dependencies.filter(d => d.status !== 'complete');
+  return {
+    eligible: false,
+    blocking: blockers.map(b => ({ id: b.id, title: b.title, status: b.status }))
+  };
+}
+
+// Called whenever any task transitions to 'complete'
+async function onTaskComplete(completedTask) {
+  if (!completedTask.project_id) return;
+
+  const downstreamTasks = await db.select()
+    .from(tasks)
+    .where(and(
+      eq(tasks.project_id, completedTask.project_id),
+      eq(tasks.status, 'captured')   // only those not yet dispatched
+    ));
+
+  for (const t of downstreamTasks) {
+    if (t.depends_on?.includes(completedTask.id)) {
+      const check = await checkDispatchEligibility(t);
+      if (check.eligible) {
+        await dispatchTask(t);
+      }
+    }
+  }
+
+  // Also check if project is now complete
+  await reevaluateProjectStatus(completedTask.project_id);
+}
+
+4. The Projects Tab
+4.1 Top-level view
+	•	Filter chips at the top: All / Active / Planning / Paused / Complete / Cancelled
+	•	Sort controls: by target_completion, by risk_level, by recent activity
+	•	"+ New Project" button
+	•	List of project cards
+4.2 Project card
+┌──────────────────────────────────────────────────┐
+│ Fareharbor Migration                  [risk:elev]│
+│ Lead: Nick · Target: May 15                      │
+│ ████████░░░░░░░░  4/9 milestones complete       │
+│ Last activity: 2h ago                            │
+│ ⚠ 1 milestone overdue · 1 dependency blocked   │
+└──────────────────────────────────────────────────┘
+	•	Project name and risk badge
+	•	Lead name and target completion date
+	•	Progress bar (% milestones complete)
+	•	Last activity timestamp
+	•	At-a-glance health indicators (overdue milestones, blocked dependencies, escalations)
+4.3 Project detail view
+Tapping a card opens the detail view:
+Header
+	•	Project name (editable inline by Selmen)
+	•	Description
+	•	Lead, target date, risk level
+	•	Status (active, paused, complete, cancelled)
+	•	Action buttons: Pause project, Mark complete, Cancel, Edit
+Milestones list
+Each milestone is a card showing:
+	•	Sequence number, title, owner, due date
+	•	Status badge
+	•	Progress indicator if in_progress
+	•	Dependencies list (linked to other milestones)
+	•	Tap to expand: full description, recent thread activity, action buttons
+Activity feed
+Reverse-chronological feed of project events: dispatches, replies, completions, blockers, agent observations. This is the audit trail.
+Agent observations panel
+Sidebar showing the agent's running notes about this project: risks identified, coordination concerns, pace observations. Updated as the project evolves.
+
+5. Risk Detection & Project-Level Chase
+5.1 Daily project review
+Once a day (part of the morning brief job), the agent runs a project review pass over every active project. For each project:
+	•	Compute progress: completed milestones / total milestones
+	•	Compute pace: progress vs. expected progress at this date
+	•	Identify overdue milestones (past due_at, not complete)
+	•	Identify blocked milestones (depending on slipping milestones)
+	•	Compute current risk_level — auto-elevate if pace is significantly off
+	•	Generate observations for the project's agent observations panel
+5.2 Risk level auto-adjustment
+Risk_level can elevate (or lower) based on observed signals:
+From
+To
+Trigger
+normal
+elevated
+Any milestone overdue OR project pace > 20% behind plan
+elevated
+critical
+Two+ milestones overdue OR escalation raised on a milestone owner OR target_completion will likely miss by >20%
+any
+low
+Project on or ahead of pace AND no recent issues — only auto-lowers from normal, never from elevated/critical (humans recover those)
+5.3 Project-level escalation
+When risk elevates from normal → elevated, the agent surfaces it to Selmen via:
+	•	Today tab Awaiting section: "⚠ Fareharbor Migration moved to elevated risk"
+	•	Daily brief: project flagged with reasoning
+	•	PWA notification (not SMS unless critical)
+When risk elevates to critical:
+	•	SMS to Selmen with summary and recommended action
+	•	Top of Today tab
+	•	Daily brief headline
+5.4 Recommended actions for risky projects
+The agent doesn't just flag risk — it suggests next steps. Common patterns:
+	•	Owner is overloaded (too many other open tasks): suggest reassignment of one milestone
+	•	Multiple milestones blocked on same upstream: suggest unblocking that upstream as priority 1
+	•	External party silent (broker, lawyer, partner): suggest Selmen places a phone call
+	•	Scope expanded mid-project: suggest re-planning to add new milestones explicitly
+
+6. Manual Project Operations
+Even with autonomous detection and risk monitoring, Selmen retains full control.
+6.1 Create a project manually
+From the Projects tab, "+ New Project" opens an empty form. Selmen can either:
+	•	Fill it out manually (name, description, target, lead)
+	•	Brain-dump into a description field and tap "Plan it for me" — same Claude-Opus planning flow as auto-detection
+6.2 Promote a task to a project
+From any task in the Today tab, a menu option "Promote to project" opens the planning flow with the task's content as the brain-dump.
+6.3 Add a milestone to an existing project
+	•	From project detail view, "+ Add milestone" opens an inline form
+	•	Set title, description, owner, due date, dependencies on existing milestones
+	•	On save, becomes a task linked to the project
+6.4 Reorder or re-sequence milestones
+	•	Drag-to-reorder in milestone list
+	•	Edit dependencies on a per-milestone basis
+	•	Saving recomputes the dispatch graph
+6.5 Pause a project
+	•	Sets status='paused'
+	•	Pending milestones not yet dispatched stay un-dispatched
+	•	Active milestones (already dispatched) continue normally
+	•	Selmen can resume any time
+6.6 Cancel a project
+	•	Sets status='cancelled'
+	•	Soft-cancels all not-yet-complete milestones (they remain in DB but are excluded from views)
+	•	Active dispatched messages are not retracted (already sent — can't unsend)
+	•	Selmen can choose to send a 'project cancelled' note to all owners (recommended)
+6.7 Mark project complete
+	•	Sets status='complete'
+	•	All non-complete milestones are auto-cancelled
+	•	Project archives but stays viewable for reference
+
+7. Tech Decisions for This Phase
+Claude usage
+	•	Project planning: claude-opus-4-7 — this is the most reasoning-heavy task in the system. Full project plans require careful sequencing and risk identification. Worth the cost.
+	•	Project detection during capture: claude-sonnet-4-6 — quick classification, doesn't need deep reasoning
+	•	Daily project review: claude-sonnet-4-6 per project; aggregate observations summarized by Opus once a week (Phase 6 pattern)
+	•	Volume estimate: Project planning costs ~$1-2 per project. With 3-5 active projects/month, that's $5-10/month total. Daily reviews add ~$5/month.
+Dependency graph
+depends_on is a JSONB array of task IDs (defined in Document 02 schema). For complex dependency graphs, this is sufficient — Postgres can query containment with @> and JSON operators.
+If projects ever exceed 50 milestones with deep nested dependencies (unlikely for Selmen's use case), consider migrating to a dedicated graph schema. For now, JSONB is fine.
+Storing milestones snapshot
+The projects table has a milestones JSONB column for a lightweight snapshot. This is for fast UI rendering — the project card can show progress without joining tasks. The snapshot is updated whenever any associated task transitions state. Keeps the Projects tab snappy.
+
+8. API Endpoints to Build
+8.1 Project endpoints
+GET    /api/projects                        // List with filters
+POST   /api/projects                        // Create manually
+POST   /api/projects/plan                   // Run Opus planning on a brain-dump
+GET    /api/projects/:id                    // Full detail view
+PATCH  /api/projects/:id                    // Update name, description, target, lead
+POST   /api/projects/:id/pause              // Pause
+POST   /api/projects/:id/resume             // Resume
+POST   /api/projects/:id/cancel             // Cancel
+POST   /api/projects/:id/complete           // Mark complete
+GET    /api/projects/:id/activity           // Project activity feed
+GET    /api/projects/:id/observations       // Agent observations
+8.2 Milestone endpoints
+POST   /api/projects/:id/milestones         // Add milestone
+PATCH  /api/projects/:id/milestones/:taskId // Edit milestone
+POST   /api/projects/:id/milestones/reorder // Reorder
+DELETE /api/projects/:id/milestones/:taskId // Remove milestone
+8.3 Promotion endpoints
+POST   /api/tasks/:id/promote-to-project    // Promote a single task
+
+9. Background Jobs
+9.1 Project review (daily)
+Runs as part of the morning brief generation. For each active project, computes progress, pace, risk; updates risk_level if needed; generates observations; updates milestones snapshot.
+9.2 Dependency dispatch trigger (event-driven)
+Whenever any task transitions to status='complete', a job fires that re-evaluates downstream task eligibility within the same project. Eligible tasks are dispatched per Phase 2 logic.
+9.3 Project completion check (event-driven)
+Same trigger as above — when a task completes, check if all tasks in the project are now complete. If so, transition project to status='complete'.
+
+10. Acceptance Criteria
+#
+Acceptance criterion
+How to verify
+1
+Brain-dump describing a multi-step initiative is detected as a project
+Capture: 'Need to migrate to FareHarbor — Nick handles tracking, Orlando handles signage, Tahir handles reporting'. Verify type='project' returned.
+2
+Single-step task is NOT detected as a project
+Capture: 'Have Oscar update inventory list'. Verify type='task'.
+3
+Project planning generates milestones with owners and due dates
+Approve a project plan. Verify projects row + multiple tasks rows linked via project_id.
+4
+Project planning identifies dependencies between milestones
+Plan a project with sequential dependencies. Verify depends_on arrays populated correctly.
+5
+Project planning surfaces risk observations
+Plan a project. Verify observations array populated with risk-relevant notes.
+6
+First-eligible milestone (no dependencies) dispatches immediately
+Approve project. Verify M1 dispatched, M2/M3 not yet dispatched (waiting on M1).
+7
+Downstream milestone dispatches when its dependency completes
+Mark M1 complete. Verify M2 and M3 dispatch within 1 minute.
+8
+Project status transitions to complete when all milestones complete
+Complete all 5 milestones. Verify project.status='complete'.
+9
+Editing a milestone owner re-routes future dispatch
+Edit M3 owner from Test-Nick to Test-Oscar before M3 is eligible. Verify M3 dispatches to Test-Oscar.
+10
+Pause project halts un-dispatched milestones
+Pause project after M1 complete, M2 dispatched, M3 not yet eligible. Verify M3 won't dispatch even when M2 completes during pause.
+11
+Resume project resumes dispatch flow
+Resume after pause. Verify M3 dispatches if M2 had completed.
+12
+Risk auto-elevates from normal to elevated on overdue milestone
+Manually age a milestone past due_at without completion. Run daily review. Verify risk_level transitions.
+13
+Risk auto-elevates to critical on multiple overdue milestones
+Have 2 milestones overdue. Verify critical.
+14
+Critical risk triggers SMS to Selmen
+Trigger critical state. Verify SMS arrives.
+15
+Daily brief includes project risk flags
+Run morning brief with at-risk project. Verify brief mentions it.
+16
+Promote-to-project converts a task into a project
+Pick a task, tap 'Promote to project'. Verify planning flow runs and produces structure.
+17
+Add milestone to existing project links correctly
+Add milestone to an active project with depends_on=[M3]. Verify dispatch waits for M3.
+18
+Reorder milestones updates depends_on correctly
+Drag M3 above M2. Verify dependencies updated.
+19
+Cancelled project doesn't dispatch new milestones
+Cancel a project mid-flight. Verify pending milestones stay un-dispatched.
+20
+Project detail view loads in <1s with 20+ milestones
+Create a project with 25 milestones. Open detail view. Time it.
+21
+Activity feed shows all project events in correct order
+Run a project through full lifecycle. Verify activity feed is complete.
+22
+Manual creation of a project (no Claude planning) works
+Create blank project, manually add 3 milestones. Verify saved correctly.
+
+11. Testing Plan
+11.1 Unit tests
+	•	Project detection classifier: feed 30 brain-dumps, verify >80% accuracy on project vs. task
+	•	Dependency check: tests covering empty deps, single dep, multiple deps, deep chains
+	•	Risk auto-adjustment: every transition rule covered
+	•	Milestone snapshot regeneration: each task state change triggers correct snapshot update
+11.2 Integration tests
+	•	Full project lifecycle: brain-dump → detection → planning → approval → dispatch → completion → archive
+	•	Pause and resume across milestone boundaries
+	•	Cancel mid-flight: verify no further dispatches
+	•	Adding/removing milestones to active project
+	•	Risk escalation: trigger every transition path
+11.3 Behavior tests against shadow team
+	•	Run a real-feeling Fareharbor-style project end-to-end in staging. 5 days, multiple team members. Verify the agent's project-level observations track real progress.
+	•	Have one shadow team member intentionally stall a milestone. Verify risk elevates and downstream milestones reflect blocked-upstream state.
+	•	Complete a project. Verify archive correctness — final state captured, all timestamps in place.
+11.4 Adversarial tests
+	•	Circular dependencies (M1 depends on M2, M2 depends on M1) — verify detection and rejection during planning
+	•	Project with 50 milestones — verify performance
+	•	Two projects sharing same owner with overlapping deadlines — verify the agent flags the conflict
+	•	Brain-dump that's a project but with vague description — verify clarification request
+
+12. Dependencies & Prerequisites
+Before starting Phase 5
+	•	Phases 1-4 complete and stable
+	•	Daily morning brief job is running reliably
+	•	Phase 4 chase logic is enabled in production for the test team
+	•	Selmen has had at least one real Phase 4 escalation handled successfully — proves the foundation works
+Schema additions
+Document 02 already has projects table. The only schema work in Phase 5 is ensuring the table is migrated and indexes are present.
+
+13. Risks & Mitigations
+Risk: Project detection is too aggressive — every brain-dump becomes a project
+Mitigation: Heuristics are conservative. If false-positive rate is high in early use, tighten the prompt. The default of 'when ambiguous, treat as task' protects against noise.
+Risk: Project planning suggests bad milestones (wrong owner, unrealistic dates)
+Mitigation: Selmen reviews and edits before approval. Override patterns feed Phase 6 learning. Over time, the agent learns Selmen's planning preferences (which team members tend to own which work, typical milestone durations for project types).
+Risk: Dependency graph gets out of sync after manual edits
+Mitigation: Single source of truth is the depends_on JSONB array on each task. UI edits go through PATCH endpoints that validate (no circular refs). Background job has a daily integrity check that flags any inconsistencies.
+Risk: Risk_level oscillates as milestones complete and slip
+Mitigation: Hysteresis. Risk only auto-lowers from 'normal' (never from elevated/critical without human action). Once elevated, requires Selmen marking observation as resolved or completing milestones to drop it. This prevents flickering.
+Risk: Long-running project becomes a graveyard of stale milestones
+Mitigation: Daily review surfaces projects with no activity in 14+ days. Selmen prompted: 'This project hasn't moved. Is it still active or should we archive?' Inactivity is a leading indicator of abandonment.
+Risk: Project planning takes too long for Selmen's patience
+Mitigation: Opus planning takes 10-30 seconds. PWA shows a progress indicator with cycling status messages. If Selmen is in a hurry, he can skip planning and create the project manually with milestones added later.
+
+14. The Fareharbor Test, Round Two
+Phase 4 had a Fareharbor test focused on chase. Phase 5 has its own test focused on project-level prevention.
+During staging acceptance, run this:
+	•	Brain-dump: "We need to migrate from current booking system to FareHarbor by end of month. Nick handles tracking pixel updates. Orlando handles updating signage and operations training. Tahir handles building the reporting integration. Brandon needs to review the contract first."
+	•	Verify the agent detects this as a project and proposes structure with: Brandon's review as M1, Nick's tracking as M2 (depends on M1), Orlando + Tahir as M3 and M4 (depend on M1), final cutover as M5 (depends on all)
+	•	Approve the project
+	•	Have shadow team progress through M1 (Brandon) and M2 (Nick) normally
+	•	Have Test-Tahir's M3 stall — no response to nudges, deadline approaching
+	•	Verify: by day 3 of stall, project risk has elevated, downstream M5 shows blocked-upstream, daily brief headlines the issue, recommended action is 'phone call to Tahir + consider parallel start on M5 cutover prep'
+If this passes, the project-level Fareharbor protection is working. Multi-step initiatives are now systematically de-risked.
+
+15. Phase 5 Sign-Off Checklist
+	•	All acceptance criteria in Section 10 verified in staging
+	•	All Section 11 tests passed
+	•	Phase 5 Fareharbor test from Section 14 passed
+	•	Selmen has used Phase 5 in staging for at least 5 days, with at least 2 active projects
+	•	Daily project review job runs successfully and produces useful observations
+	•	Risk auto-adjustment behaves correctly in tests
+	•	Documentation in /docs is up to date
+With Phase 5 complete, the agent can now handle the entire spectrum of Selmen's work — from quick brain-dumps that become single tasks to complex multi-month initiatives that get planned, dispatched, chased, and risk-monitored automatically. Phase 6 is the cherry on top: the learning loop that compounds value by detecting patterns and generating SOPs over time. Phase 7 adds file access and GitHub integration.

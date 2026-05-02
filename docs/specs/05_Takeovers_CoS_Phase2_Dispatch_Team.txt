@@ -1,0 +1,399 @@
+TAKEOVERS CHIEF OF STAFF
+Phase 2
+Dispatch + Team Tab
+Document 05 of 13
+Estimated build time: 2-3 weeks
+Outcome: Tasks reach the right person, in their style, on the right channel.
+
+Phase Goal
+Phase 2 closes the second loop: Dispatch. The agent now takes captured tasks and routes them to team members — drafting briefs in each person's preferred communication style, picking the right channel (SMS or email), and either auto-sending (Tier A) or queuing for approval (Tier B).
+This is also the phase where the Team and Approvals tabs become functional. The Team tab becomes Selmen's reference — one card per person with current tasks, response patterns, and contact history. The Approvals tab is where Tier B drafts wait.
+The first time the agent dispatches a task to Oscar via SMS and Oscar texts back "got it", Phase 2 has delivered its core value.
+What you can do at the end of Phase 2:
+	•	Brain-dump a task — agent identifies the owner, drafts the message in their style, sends or queues based on tier
+	•	Review pending dispatches in the Approvals tab and one-tap approve or edit
+	•	Receive team replies — agent threads them with the task and updates status
+	•	Open a team member's card to see all tasks, last contact, response patterns
+	•	Add a new team member from the PWA, immediately routable
+What is explicitly NOT in this phase:
+	•	No automatic follow-up if a team member goes silent (Phase 4)
+	•	No email reading or replying (Phase 3)
+	•	No project tracking (Phase 5)
+	•	No learning from override patterns (Phase 6)
+
+1. The Dispatch Pipeline
+When a capture is classified as type='task' AND has a proposed_owner_hint OR Claude is confident enough to assign one, the dispatch pipeline runs.
+Pipeline stages
+	•	Owner resolution — match the hint or task content against the team_members table
+	•	Tier classification — determine A (autonomous) vs B (approval needed) vs C (Selmen-only)
+	•	Brief drafting — Claude generates the message in the owner's preferred style
+	•	Channel selection — SMS or email based on owner preferences and task complexity
+	•	Deadline proposal — Claude proposes due_at if not set, based on task type
+	•	Send or queue — Tier A goes out via Twilio/Gmail; Tier B becomes a row in email_drafts or a pending SMS in the Approvals tab
+1.1 Owner resolution
+Owner resolution uses two signals:
+	•	Explicit hint: If Selmen's brain-dump contains a name ("have Nick check the tracking pixels"), Claude extracts proposed_owner_hint='Nick' during capture parsing.
+	•	Responsibility match: If no hint, the agent matches task content against the responsibilities array of each team_member. Example: a task about "check fleet repairs" matches Orlando's fleet_management responsibility.
+If multiple team members match, the agent picks the most specific one. If no clear match, the task stays owned by Selmen and surfaces a soft prompt: "Want me to delegate this? Suggested: Oscar."
+Owner resolution logic (pseudocode)
+function resolveOwner(captureParse, teamMembers) {
+  // 1. Explicit hint
+  if (captureParse.proposed_owner_hint) {
+    const match = teamMembers.find(m =>
+      m.short_name.toLowerCase() === captureParse.proposed_owner_hint.toLowerCase()
+    );
+    if (match) return { owner: match, confidence: 0.95 };
+  }
+
+  // 2. Responsibility match via Claude
+  const matchPrompt = buildOwnerMatchPrompt(captureParse, teamMembers);
+  const result = await claude.complete(matchPrompt);
+  // returns { owner_id, confidence, reasoning }
+
+  if (result.confidence >= 0.7) return { owner: ..., confidence: result.confidence };
+  return { owner: null, confidence: result.confidence, suggestion: ... };
+}
+1.2 Tier classification
+Every dispatch is classified into Tier A, B, or C based on rules:
+Tier
+Trigger conditions
+Behavior
+A
+Internal team member, task type is routine, owner has internal_status (not partner_status, not external_status), owner_resolution_confidence >= 0.85
+Auto-send via SMS or email. Log to agent_actions_log.
+B
+Owner has partner_status=true (Brandon, Richard) OR external_status=true (Karina, legal) OR task involves money/contracts/commitments OR owner_resolution_confidence < 0.85
+Draft into Approvals tab. Push notification to Selmen.
+C
+Task involves scheduling a meeting, hiring/firing, signing documents, financial go/no-go decisions
+Stays on Selmen's plate. Surfaced as reminder, not delegation.
+1.3 Brief drafting
+The agent uses Claude to draft the message in the owner's preferred style. Two style templates:
+Detailed style (for Nick, Josh, Oscar)
+Hey [name],
+
+[2-3 sentence context — why this matters, what's connected to it]
+
+What I need: [clear ask, bulleted if multiple things]
+
+[Any relevant deadline or constraint]
+
+Let me know if you have questions.
+Terse style (for Orlando, Joan, Tahir, Kathy, Karina, Richard, Brandon)
+[Name] — [direct ask]. [Deadline if set].
+Brief drafting prompt
+SYSTEM:
+You are drafting a task message from Selmen Hassen to a member of his team.
+Selmen brain-dumped this: "{capture_text}"
+
+The owner is {owner.full_name}, role: {owner.role_summary}.
+Communication style: {owner.communication_style}
+Preferred channel: {owner.preferred_channel}
+Context notes about {owner.short_name}: {owner.context_notes}
+
+Draft the message in Selmen's voice. Selmen is direct, friendly, never
+overly formal. He uses "hey" not "hello". He doesn't sign messages.
+
+If style is 'detailed': use the detailed template (context, ask, deadline).
+If style is 'terse': use the terse template (one short line).
+
+Return JSON:
+{
+  "channel": "sms" | "email",
+  "subject": null | "if email",
+  "body": "the message",
+  "proposed_due": null | ISO timestamp,
+  "reasoning": "why you chose this channel and style"
+}
+1.4 Channel selection
+Default to SMS. Use email instead if any of these are true:
+	•	Task description is longer than ~300 characters or has multiple distinct asks
+	•	Task is tagged 'tech', 'ads', or 'paper-trail-needed' (Nick gets emails for tech/ads context per Selmen's preference)
+	•	Task is for an external party (partners, legal, broker)
+	•	Task involves attachments or images
+	•	Owner's preferred_channel is 'email'
+1.5 Deadline proposal
+If Selmen didn't specify a deadline, Claude proposes one based on task type and urgency:
+Task signal
+Default proposal
+Override rules
+Urgent fire / customer issue
+Today end-of-day
+If after 6 PM, propose tomorrow morning
+Operational task
+48 hours from now
+Skip weekends if owner doesn't work weekends
+Strategic / planning
+End of week
+If issued Wed-Fri, push to next Monday
+Long-term / research
+2 weeks
+Stays as soft deadline, not hard
+Recurring check-in
+Per the schedule cadence
+Honors timezone
+
+2. The Approvals Tab
+Tier B drafts wait here for Selmen's review. Each item is a card.
+Card layout
+	•	Top: recipient name, channel icon (SMS/email), draft channel-specific (subject for email)
+	•	Middle: full draft body in a styled chat-bubble or email preview
+	•	Below: agent's reasoning — "Why I drafted this"
+	•	Bottom row: three buttons — Approve / Edit / Reject
+Actions
+	•	Approve: Sends immediately. Logs to agent_actions_log with principal_overrode=false.
+	•	Edit: Opens an inline editor on body (and subject if email). On save, sends and logs with principal_overrode=true and the diff.
+	•	Reject: Marks the draft rejected. Logs principal_overrode=true with reason. The task stays in 'captured' status (still on Selmen's plate).
+Auto-expiry
+Drafts older than 7 days auto-expire. The task is left in 'captured' status and surfaces in Selmen's Today tab as a reminder.
+Push notification
+When a new draft enters Approvals, send a web push notification (and SMS fallback if Selmen hasn't opened the PWA in 4+ hours). Limit to one push per 30-minute window — batch multiple drafts into one notification ("3 new approvals").
+
+3. The Team Tab
+Becomes fully functional in Phase 2.
+Top section: Team grid
+One card per active team member. Card shows:
+	•	Avatar (initials or photo)
+	•	Name and role line
+	•	Current open task count
+	•	Last contact timestamp ("3 hours ago")
+	•	Status indicator (responsive / slow / silent based on response time vs their baseline)
+	•	A subtle dot indicating preferred channel (SMS = green, email = blue)
+Tap a card → Member detail view
+	•	Header: full name, role, location, timezone, working hours
+	•	Quick actions: New Task, Send Message, Edit Profile
+	•	Open tasks list (sorted by due date)
+	•	Completed tasks list (collapsible, sorted by completion date)
+	•	Communication thread — full message history with this person
+	•	Response patterns box — average time to acknowledge, average time to complete, current streak
+	•	Context notes (editable)
+Add Member flow
+	•	Tap "+ Add Member" button on the Team grid
+	•	Form: Full Name, Short Name, Role, Phone, Email, Location, Preferred Channel, Communication Style (detailed/terse), Partner status checkbox, External status checkbox, Context notes
+	•	On save: insert into team_members, the agent immediately picks them up in routing
+	•	If phone is provided, the system sends a one-time intro SMS: "Hey [name] — this is Selmen's assistant. He may be reaching you here for tasks and updates. Save this number."
+Edit Member flow
+Same form pre-filled. Soft-update on save. Old preferences are stored in the agent_actions_log as context for the learning loop ("Selmen changed Nick's preferred channel from SMS to email — pattern noted").
+Deactivate Member flow
+	•	Soft delete via deleted_at timestamp
+	•	Open tasks owned by this member surface as needing reassignment
+	•	Prompt: "Oscar has 4 open tasks. Reassign to: __ or close them."
+
+4. Inbound Reply Handling
+When a team member replies to an agent-sent SMS or email, the reply must be threaded back to the originating task and surfaced to Selmen.
+4.1 SMS reply flow
+	•	Twilio webhook fires on inbound SMS to the agent's number
+	•	From-number is matched against team_members.phone — identifies the sender
+	•	If sender is a team member, find the most recent task dispatched to them via SMS
+	•	Append the inbound message to the agent ↔ team thread
+	•	Run Claude classification: is this an acknowledgment, a question, a status update, a blocker, a completion?
+	•	Update task status accordingly: dispatched → acknowledged on first reply, → in_progress on "working on it", → blocked on "can't do this because...", → complete on "done"
+	•	If the reply is a question and the agent has context to answer: draft an auto-reply (Tier A or Tier B based on confidence)
+	•	Surface in Selmen's Today tab if escalation is warranted (Phase 4) or if the reply contains a decision Selmen should see
+4.2 Reply classification prompt
+SYSTEM:
+Classify a team member's reply to a task message.
+
+Original task: "{task.description}"
+Original message: "{original_message.body}"
+Reply: "{reply.body}"
+
+Return JSON:
+{
+  "category": "acknowledgment" | "working_on_it" | "completed" | "blocked" | "question" | "status_update" | "unclear",
+  "new_task_status": "acknowledged" | "in_progress" | "blocked" | "complete" | null,
+  "contains_question": boolean,
+  "question_text": null | "the question",
+  "contains_blocker": boolean,
+  "blocker_text": null | "what's blocking",
+  "escalate_to_selmen": boolean,
+  "escalation_reason": null | "why selmen should see this"
+}
+4.3 Auto-reply rules
+The agent only auto-replies to a team member when ALL of these are true:
+	•	The reply contains a question
+	•	Confidence in the answer is >= 0.85
+	•	Answer is fact-based, not a judgment call
+	•	Question is about logistics, deadlines, or scope clarification — not about a decision
+Otherwise, the question is surfaced as a draft reply in the Approvals tab.
+
+5. Tech Decisions for This Phase
+Twilio Programmable Messaging
+	•	Conversations API for thread management (recommended) OR raw Messages API
+	•	Webhook for inbound at /api/webhooks/twilio/sms-inbound (already exists from Phase 1, extended here for team replies)
+	•	Status callbacks for delivery receipts: delivered, failed, undelivered — track in messages.delivered_at
+	•	Rate limiting: Twilio allows 1 msg/sec by default. For burst sends (e.g. weekly check-ins to all 11 team members), queue with BullMQ to space sends 1 second apart
+Gmail OAuth (preview for Phase 3)
+Phase 2 starts using Gmail for sending only — no reading yet. Set up the OAuth flow now so Phase 3 can extend it.
+	•	Three OAuth client configurations (one per Gmail account in production)
+	•	Scope: gmail.send only for Phase 2 — modify.metadata, gmail.readonly etc come in Phase 3
+	•	Encrypted refresh tokens stored in email_accounts table
+Claude usage
+	•	Brief drafting: claude-sonnet-4-6 — fast, cheap, sufficient
+	•	Reply classification: claude-sonnet-4-6 — same
+	•	Owner resolution (when no explicit hint): claude-sonnet-4-6
+	•	Edge cases / complex briefs: claude-opus-4-7 — fall back to Opus when Sonnet returns low confidence
+
+6. API Endpoints to Build
+6.1 Dispatch endpoints
+POST   /api/dispatch                 // Manually trigger dispatch on a task
+POST   /api/dispatch/preview         // Get the draft without sending
+GET    /api/approvals                // List pending Tier B drafts
+POST   /api/approvals/:id/approve    // Approve and send
+POST   /api/approvals/:id/edit       // Edit and send
+POST   /api/approvals/:id/reject     // Reject
+6.2 Team endpoints
+GET    /api/team                     // List active members (already exists)
+POST   /api/team                     // Add new member
+GET    /api/team/:id                 // Get full member detail
+PATCH  /api/team/:id                 // Update member
+DELETE /api/team/:id                 // Soft-delete (deactivate)
+GET    /api/team/:id/tasks           // Tasks owned by this member
+GET    /api/team/:id/messages        // Full message history
+6.3 Sending endpoints (internal use)
+POST   /internal/send-sms            // Service-to-service
+POST   /internal/send-email          // Service-to-service
+POST   /api/webhooks/twilio/status   // Delivery receipts
+
+7. Background Jobs
+7.1 Dispatch worker
+Triggered when a task transitions from 'captured' to ready-to-dispatch. Runs the full pipeline (resolve → tier → draft → send-or-queue). If Tier A: sends immediately and updates task status to 'dispatched'. If Tier B: creates a draft row, sends a push notification.
+7.2 Outbound SMS queue
+BullMQ queue for outbound SMS to enforce rate limiting and retry logic. Each job: tries Twilio send, on failure with retryable error code → exponential backoff up to 3 retries. On non-retryable error → log error, mark message status, alert via Sentry.
+7.3 Outbound email queue
+Same pattern for Gmail API sends. Handles OAuth token refresh transparently — if access token is expired, use refresh token to get a new one before sending.
+
+8. Acceptance Criteria
+Phase 2 is done when all of the following are verified in staging using the shadow team:
+#
+Acceptance criterion
+How to verify
+1
+Capture with explicit owner hint routes correctly
+Send: "Have Test-Oscar update the inventory list by Friday." Verify Oscar gets SMS within 30 seconds.
+2
+Capture without hint, but with clear responsibility match, routes correctly
+Send: "Need someone to check the trail conditions after the rain." Verify Test-Orlando gets SMS (fleet/field).
+3
+Capture with ambiguous owner stays with Selmen + suggests delegation
+Send: "Figure out the thing with the brand stuff." Verify it stays in Selmen's Today and shows a suggested owner.
+4
+Detailed style draft is generated for Test-Nick
+Dispatch a tech task to Test-Nick. Verify draft has context paragraph + bulleted ask + deadline.
+5
+Terse style draft is generated for Test-Orlando
+Dispatch a fleet task to Test-Orlando. Verify draft is one short sentence.
+6
+Tier A task auto-sends without approval
+Dispatch routine task to Test-Joan. Verify SMS sends without showing up in Approvals.
+7
+Tier B task lands in Approvals tab
+Dispatch task involving Test-Brandon (partner). Verify it appears in Approvals tab + push notification fires.
+8
+Tier B Approve button sends and logs correctly
+Open Approvals, tap Approve. Verify SMS sends. Verify agent_actions_log shows principal_overrode=false.
+9
+Tier B Edit button allows in-line editing and sends edited version
+Open Approvals, tap Edit, change body, save. Verify edited version sends. Verify principal_overrode=true and override_diff is captured.
+10
+Tier B Reject button leaves task in captured status
+Reject a draft. Verify task remains in Selmen's Today tab.
+11
+Email is selected as channel for long tasks
+Brain-dump a task with 5 distinct sub-asks. Verify email is selected.
+12
+Email is selected for tech tasks to Test-Nick
+Brain-dump a Nick task tagged tech. Verify email channel is selected.
+13
+Inbound SMS reply from team member updates task status
+Reply 'got it' from Test-Oscar's number. Verify task status moves to acknowledged.
+14
+Inbound reply with completion language marks task complete
+Reply 'done' from Test-Joan. Verify task status = complete.
+15
+Inbound reply with blocker creates blocker note + escalates
+Reply 'cant do this, hes out of stock'. Verify blocked_reason populated, escalation flag raised.
+16
+Adding new team member from PWA makes them immediately routable
+Add Test-Newperson with role 'inventory'. Brain-dump inventory task. Verify dispatch routes to them.
+17
+Deactivating a team member with open tasks prompts reassignment
+Deactivate Test-Oscar (with 3 open tasks). Verify prompt to reassign appears.
+18
+Team tab card shows current open task count and last contact
+Open Test-Nick's card. Verify counts match database state.
+19
+Auto-expiry: drafts older than 7 days disappear from Approvals
+Manually update a draft's created_at to 8 days ago. Verify it's no longer shown.
+20
+Twilio rate limits don't cause failures during bulk sends
+Trigger 11 simultaneous dispatches. Verify all succeed, sent 1 second apart.
+21
+Push notification batches multiple Approvals into one
+Create 3 drafts in 30 seconds. Verify only one push fires.
+
+9. Testing Plan
+9.1 Unit tests
+	•	Owner resolution with explicit hint, with responsibility match, with no match
+	•	Tier classification — every rule covered
+	•	Style detection — detailed vs terse
+	•	Channel selection — SMS vs email
+	•	Reply classifier — at least 30 example replies covering all categories
+9.2 Integration tests
+	•	End-to-end: capture → parse → dispatch → SMS sent → reply received → status updated
+	•	Approval flow: Tier B draft → approve → send → log
+	•	Edit flow: Tier B draft → edit → send → diff captured
+	•	OAuth token refresh on expired access token
+	•	Twilio retry on transient failure
+9.3 Behavior tests against real personas
+Run through these with the shadow team:
+	•	Have Test-Nick respond exactly like Nick would (detailed, technical, asking clarifying questions). Verify the agent threads correctly and updates task status.
+	•	Have Test-Orlando respond with one-word answers. Verify the agent doesn't get confused.
+	•	Have Test-Brandon (partner) respond with a counter-proposal. Verify it surfaces to Selmen as a draft, not auto-replied.
+	•	Have a team member fail to respond to a Tier A SMS. Verify nothing breaks (Phase 4 handles follow-up; Phase 2 just stays silent).
+9.4 Adversarial tests
+	•	Send a brain-dump containing two team members' names — verify the agent picks the more relevant one or prompts for clarification
+	•	Send a brain-dump in Spanish — verify dispatch still works
+	•	Send 10 simultaneous brain-dumps — verify all dispatch correctly without race conditions
+	•	Have a team member reply with a long story ("I tried but then this happened, and then...") — verify reply classifier handles graceful degradation
+
+10. Dependencies & Prerequisites
+Before starting Phase 2
+	•	Phase 1 is complete and running in staging
+	•	Twilio is configured with two numbers (staging + production)
+	•	Gmail OAuth apps are configured for staging and production (3 prod accounts, 1 staging account)
+	•	Shadow team members exist in staging with test phone numbers
+	•	All Phase 1 acceptance criteria continue to pass
+Schema additions for Phase 2
+All Phase 2 functionality is supported by the schema in Document 02. No new tables. The following columns become actively populated for the first time:
+	•	tasks: dispatch_channel, dispatched_at, dispatched_by, acknowledged_at, blocked_reason, authority_tier
+	•	messages: claude_parse, external_id (Twilio SID, Gmail message ID)
+	•	threads: counterparty_id (team member threads now exist)
+	•	email_drafts: all rows from this point forward
+	•	agent_actions_log: principal_overrode, override_diff for the learning loop
+
+11. Risks & Mitigations
+Risk: Agent dispatches a task to the wrong person
+Mitigation: Owner resolution requires confidence >= 0.7 to auto-route. Below that, task stays with Selmen. Tier A only fires at >= 0.85. The first 50 dispatches in production should be reviewed manually after the fact to calibrate the confidence thresholds.
+Risk: Style is wrong (too formal, too casual, doesn't sound like Selmen)
+Mitigation: Drafts that Selmen edits in Approvals contribute to the learning loop in Phase 6. Until Phase 6, the system uses fixed style templates from this document. After Phase 6, edited patterns refine the templates.
+In the first weeks of Phase 2 production, it's expected that Selmen will edit ~30% of Tier B drafts. That's the gold data for the learning loop. Don't be discouraged — that's the system working as designed.
+Risk: Team member doesn't recognize the agent's number
+Mitigation: Send the intro SMS when adding a new member. Selmen should also brief his team in person before going live with Phase 2: "You're going to start getting texts from a number labeled 'Selmen's assistant' — that's still me, just routed through a system. Reply normally."
+Risk: Inbound reply classifier mis-categorizes (e.g. 'done' as ack instead of complete)
+Mitigation: Status transitions are reversible. If Selmen sees a status that's wrong, one tap to correct. Wrong classifications also feed the learning loop.
+Risk: Tier B drafts pile up because Selmen forgets to approve
+Mitigation: Push notification for every new draft, batched. Daily morning brief includes a count of pending approvals. Drafts auto-expire after 7 days. If Approvals piles up consistently, the agent can be tuned to broaden Tier A rules — that's a feature, not a bug.
+Risk: Team member responds to old message thread instead of starting new one
+Mitigation: SMS doesn't have rich threading, so we associate inbound replies with the most recent outbound task in the same conversation. Edge case: rapid-fire dispatches in a short window can confuse threading. Acceptable for Phase 2 — Phase 6 learning will tune.
+
+12. Phase 2 Sign-Off Checklist
+	•	All acceptance criteria in Section 8 verified in staging
+	•	All Section 9 testing passed — including persona tests with shadow team
+	•	Selmen has personally used Phase 2 in staging for at least 5 consecutive days
+	•	Override rate (% of Tier B drafts edited or rejected) is logged and visible
+	•	Twilio production account has been provisioned and funded
+	•	Selmen has informed his real team that the agent will be reaching out — verbal heads-up before any real dispatch
+	•	auto_dispatch_internal_team flag is OFF in production (will be flipped on per the rollout plan)
+	•	Documentation in /docs is up to date with any deviations
+Once Phase 2 is in production with the dispatch flag enabled, you've solved the dispatch failure mode. The agent now closes the gap between brain-dump and team. Phase 3 adds email handling. Phase 4 adds follow-up — the chase loop that prevents Fareharbor-style fires.

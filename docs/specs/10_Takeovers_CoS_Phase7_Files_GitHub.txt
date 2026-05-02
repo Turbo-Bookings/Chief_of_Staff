@@ -1,0 +1,403 @@
+TAKEOVERS CHIEF OF STAFF
+Phase 7
+Files + GitHub
+Document 10 of 13
+Estimated build time: 1-2 weeks
+Outcome: The agent reads and writes Drive files and grounds tech tasks in the actual codebase.
+
+Phase Goal
+Phase 7 expands the agent's reach in two complementary directions. First, Google Drive integration so the agent can read, create, organize, and share files — covering the bulk of "can you find that doc" or "create a new one-pager about X" requests without dropping into local computer access. Second, GitHub integration so the agent has live context on Selmen's tech stack — when Nick or Tahir get a task referencing "the tracking script" or "the FareHarbor webhook", the agent can pull the actual file and ground the task brief in real code instead of generalities.
+Both integrations are read-write but bounded. Drive starts read-write but only in folders Selmen has explicitly granted. GitHub starts read-only — write access (opening issues, commenting on PRs) can be added later if Selmen wants. This phase intentionally avoids local computer access. Most file operations are cloud-based and Drive covers them; local access opens a security surface that isn't worth it until there's a specific unmet need.
+What you can do at the end of Phase 7:
+	•	Brain-dump references a file ("can you pull up the Q2 marketing plan") and the agent finds it in Drive
+	•	Brain-dump asks for a new doc ("draft a one-pager on the new pricing structure") and the agent creates it
+	•	Tech task references code ("have Nick fix the bug in the FareHarbor webhook") and the agent pulls the relevant file as context for the dispatch brief
+	•	Agent responds to questions about codebase state ("what's the current pixel ID in production?") by reading the repo
+	•	Agent can attach Drive files to outbound emails when needed
+	•	Agent links to specific files or commits in task briefs to give team members direct context
+What is explicitly NOT in this phase:
+	•	No write access to GitHub repos (no committing, no opening PRs, no editing files)
+	•	No local computer access — Drive only for cloud files
+	•	No Drive bulk operations (no "organize all my files" — too risky)
+	•	No automated code review or technical analysis (the agent reads code for context, not to judge it)
+
+1. Google Drive Integration
+1.1 OAuth setup
+Drive uses the same Google Cloud project as Gmail (Phase 3). Add Drive scopes to the existing OAuth consent screen. The agent connects to one Drive account — Selmen's primary work Drive (associated with sel@takeoversrentals.com).
+Required scopes
+https://www.googleapis.com/auth/drive.file
+// Lets the agent access only files it created OR files explicitly opened
+// via Drive picker. Most secure default.
+
+https://www.googleapis.com/auth/drive.metadata.readonly
+// Read file metadata (titles, owners, dates) for search
+
+// NOT used by default:
+// drive (full access) — too broad
+// drive.readonly — too broad
+The drive.file scope is much safer than drive.readonly. It restricts the agent to files Selmen has explicitly granted access to via Drive picker, plus files the agent itself created. This means a malicious prompt cannot trick the agent into exfiltrating arbitrary Drive content. Strongly recommended.
+1.2 Folder authorization model
+Selmen explicitly grants the agent access to specific folders via a one-time setup flow:
+	•	In PWA Settings → Drive Access, tap "Authorize a folder"
+	•	Drive picker opens — Selmen selects a folder (e.g. "Takeovers Operations")
+	•	Agent stores the folder ID in drive_folders table
+	•	Agent has full access (read + create + update) within that folder and its subfolders
+Recommended folder authorizations
+	•	Takeovers Operations folder — operational documents, SOPs, training materials
+	•	Marketing folder — marketing plans, creative briefs, ad copy
+	•	Templates folder — reusable templates for common documents
+	•	Reports folder — generated reports the agent might create
+	•	Selmen explicitly does NOT authorize: financial documents, legal documents, anything personal
+1.3 File operations the agent supports
+Operation
+Authority
+Use case
+Search by title/content
+Tier A within authorized folders
+"Find the Q2 marketing plan"
+Open and read a file
+Tier A within authorized folders
+Pull file content for context in dispatch or response
+Create a new doc
+Tier A in agreed-upon target folder
+"Draft a one-pager on the new pricing"
+Update an existing doc
+Tier B (always drafts edit, never auto-applies)
+"Update the Q2 plan with the new numbers"
+Move/rename a file
+Tier B
+Organizational changes need approval
+Delete a file
+Tier C (Selmen does it himself)
+Agent never deletes — only suggests
+Share a file externally
+Tier B
+Sharing changes who can see — needs Selmen approval
+Attach to outbound email
+Tier A if the email is Tier A; Tier B if email is Tier B
+Inherits authority from the email it's attached to
+1.4 File creation flow
+When Selmen says "draft a one-pager on the new pricing structure", the agent:
+	•	Determines the doc type (one-pager → Google Doc; spreadsheet → Sheet; presentation → Slides)
+	•	Identifies the target folder (default: "Takeovers Operations" unless context suggests otherwise)
+	•	Generates the content via Claude (using existing context — recent threads, related files)
+	•	Creates the file via Drive API
+	•	Returns a confirmation in the Talk tab with the file link
+	•	Optionally adds the link to a related task or email
+File creation prompt (for content generation)
+SYSTEM:
+Generate the content of a {doc_type} for Selmen Hassen.
+
+Selmen requested: "{request_text}"
+
+Relevant context from recent threads:
+{recent_context}
+
+Format:
+  - One-pager: short, scannable, headline + 3-5 bullet sections
+  - Internal memo: header, context, recommendation, next steps
+  - Marketing brief: audience, message, channels, success metrics
+  - SOP: numbered steps with owner per step
+
+Selmen's voice: direct, concrete, no fluff.
+
+Return ONLY the document body content. No commentary.
+1.5 File search flow
+When Selmen says "pull up the Fareharbor migration plan":
+	•	Agent queries Drive API search across authorized folders
+	•	Search query: title contains "fareharbor" OR fullText contains "fareharbor migration"
+	•	Returns top 5 candidates with metadata (title, modified date, owner)
+	•	Agent surfaces results in Talk tab: "Found 3 matches — here they are with links"
+	•	If only one strong match, agent can read its content for use in current context
+
+2. GitHub Integration
+2.1 Connection setup
+Phase 7 connects to GitHub via a Personal Access Token (PAT) with read-only scopes. Selmen generates the PAT once during setup.
+Required scopes (read-only)
+repo:status         // Read commit status
+public_repo         // Public repos (if any)
+read:org            // Org membership
+read:user           // User profile
+
+// For private repos, the full 'repo' scope is needed but stays read-only
+// because the agent never calls write endpoints.
+Why PAT instead of GitHub App
+GitHub App is more sophisticated (per-repo permissions, fine-grained scopes) but requires more setup. PAT is simpler, sufficient for read-only Phase 7 needs. If write access is added later, migrate to GitHub App at that time.
+2.2 Repository allowlist
+In Settings → GitHub Access, Selmen lists which repositories the agent has access to. Default: all repos in the takeovers org. Selmen can include or exclude specific repos.
+Recommended allowlist
+	•	takeovers-cos (this project itself — agent reads its own architecture)
+	•	takeovers-site (Vercel website code)
+	•	takeovers-platform (the unified platform per the architecture doc)
+	•	Any other tenant-specific repos
+2.3 What the agent does with GitHub access
+Use case 1: Grounding tech task dispatches
+When Selmen brain-dumps a tech task referencing code ("have Nick fix the FareHarbor webhook"), the agent:
+	•	Searches the relevant repo for files matching the keyword
+	•	Pulls the most-likely file content (e.g. apps/api/src/routes/webhooks.ts)
+	•	Includes a snippet in the dispatch brief to Nick: "Context: the current handler is at [path], here's the relevant code..."
+	•	Adds a link to the file in the brief
+Use case 2: Answering codebase questions
+Selmen asks "what's the current FareHarbor webhook handler doing?" The agent:
+	•	Identifies the relevant file via search
+	•	Reads it
+	•	Summarizes in plain English
+	•	Provides the file link
+Use case 3: Self-grounding
+The agent has access to the takeovers-cos repo, including the /docs folder containing all 13 of these documents. When Selmen asks "how does the chase logic work?" the agent reads the Phase 4 doc directly and answers grounded in its own architecture.
+Use case 4: PR/Issue context (read-only)
+Agent can list open PRs, open issues, recent commits. Surfaces these in tech-related dispatches: "Nick — there are 3 open PRs in takeovers-site that haven't been reviewed in 4+ days."
+2.4 GitHub API operations
+// Operations the agent can perform (read-only)
+GET /repos/{owner}/{repo}
+GET /repos/{owner}/{repo}/contents/{path}     // Read file
+GET /repos/{owner}/{repo}/git/trees/{tree_sha}?recursive=1  // Tree listing
+GET /search/code?q=...                         // Code search across allowlist
+GET /repos/{owner}/{repo}/commits              // Recent commits
+GET /repos/{owner}/{repo}/pulls                // Open PRs
+GET /repos/{owner}/{repo}/issues               // Open issues
+
+// Operations the agent does NOT perform in Phase 7:
+// PUT /repos/{owner}/{repo}/contents/{path}   // Write file — explicitly disabled
+// POST /repos/{owner}/{repo}/issues           // Open issue — disabled
+// POST /repos/{owner}/{repo}/pulls            // Open PR — disabled
+// POST /repos/{owner}/{repo}/issues/comments  // Comment — disabled
+2.5 Caching strategy
+GitHub API has rate limits (5K requests/hour authenticated). Cache aggressively:
+	•	Repository tree structure cached for 1 hour
+	•	File contents cached for 30 minutes
+	•	Search results cached for 15 minutes
+	•	Cache key includes commit SHA so updates invalidate correctly
+	•	Cache stored in Redis (already in stack)
+
+3. Talk Tab Integrations
+Phase 7 expands what the Talk tab can do.
+3.1 New capture types
+	•	"Find [file/doc/document/sheet/etc.]" → Drive search
+	•	"Create a [doc/sheet/one-pager/memo/SOP] about X" → Drive create flow
+	•	"Update [doc] with..." → Drive update flow (Tier B — drafts the edit)
+	•	"What does the [code/repo/file] do?" → GitHub read flow
+	•	"Show me PRs/issues/commits" → GitHub read flow
+	•	"Pull the FareHarbor handler so Nick can review" → GitHub read + attach to dispatch
+3.2 File previews in chat
+When the agent finds or creates a file, the Talk tab shows a card with:
+	•	File icon (Doc/Sheet/Slide/PDF/etc.)
+	•	Title
+	•	Last modified date
+	•	Owner if not Selmen
+	•	Snippet of content
+	•	"Open" button → opens in Drive
+	•	"Use as context" button → adds the file's content to the current Claude context for the next interaction
+3.3 GitHub previews in chat
+When the agent reads a code file, the Talk tab shows a card with:
+	•	File path
+	•	Repo name
+	•	Recent commit info
+	•	Code snippet (syntax highlighted, max 30 lines)
+	•	"Open in GitHub" button
+
+4. Schema Additions
+Phase 7 adds two small tables to the schema. These are not in Document 02 — add them as a Phase 7 migration.
+4.1 drive_folders
+Tracks which Drive folders the agent has authorized access to.
+CREATE TABLE drive_folders (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  drive_folder_id varchar(60) UNIQUE NOT NULL,  -- Google's folder ID
+  name            varchar(200) NOT NULL,        -- Display name
+  authorized_at   timestamp DEFAULT now(),
+  active          boolean DEFAULT true,
+  description     text,                          -- Optional notes
+  created_at      timestamp DEFAULT now()
+);
+4.2 github_repos
+Tracks which GitHub repos the agent has access to.
+CREATE TABLE github_repos (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner           varchar(100) NOT NULL,         -- GitHub user/org
+  repo_name       varchar(200) NOT NULL,         -- Repo name
+  full_name       varchar(300) UNIQUE NOT NULL,  -- owner/repo_name
+  description     text,
+  default_branch  varchar(100) DEFAULT 'main',
+  active          boolean DEFAULT true,
+  authorized_at   timestamp DEFAULT now(),
+  created_at      timestamp DEFAULT now()
+);
+4.3 file_references (optional but useful)
+Tracks files the agent has read or created, for audit and quick-recall.
+CREATE TABLE file_references (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  source          varchar(20) NOT NULL,  -- 'drive' | 'github'
+  external_id     varchar(200) NOT NULL, -- Drive file ID or GitHub path
+  title           varchar(500),
+  link_url        varchar(500),
+  last_accessed_at timestamp,
+  access_count    integer DEFAULT 1,
+  related_task_id uuid REFERENCES tasks(id),
+  related_message_id uuid REFERENCES messages(id),
+  created_at      timestamp DEFAULT now()
+);
+
+CREATE INDEX idx_file_refs_source_id
+  ON file_references(source, external_id);
+
+5. Tech Decisions for This Phase
+Drive client library
+	•	googleapis npm package (same library as Gmail Phase 3)
+	•	Drive picker is a separate JS library — load on demand in PWA settings page
+GitHub client library
+	•	@octokit/rest — official, well-maintained, supports auth and rate limit handling
+	•	Use @octokit/plugin-throttling to handle rate limits gracefully
+Claude usage
+	•	Drive search interpretation: claude-sonnet-4-6 (which file is most relevant)
+	•	File content generation: claude-sonnet-4-6 for routine docs, claude-opus-4-7 for complex documents (multi-section reports, strategic memos)
+	•	Code summarization: claude-sonnet-4-6 — short summaries are fine
+	•	Code grounding for dispatch: claude-sonnet-4-6 — pulling the right snippet for context
+Token budget for code reading
+	•	Files up to ~30K characters get included verbatim in Claude context
+	•	Larger files: include first 5K + last 5K + table-of-contents-style summary of middle
+	•	Multi-file context: tree of file paths + most-relevant 1-2 files in full
+
+6. API Endpoints to Build
+6.1 Drive endpoints
+POST   /api/drive/connect                  // Initiate OAuth (extends Gmail)
+GET    /api/drive/folders                  // List authorized folders
+POST   /api/drive/folders                  // Authorize new folder
+DELETE /api/drive/folders/:id              // Revoke folder access
+GET    /api/drive/search?q=...             // Search across authorized folders
+GET    /api/drive/files/:id                // Get file metadata + content
+POST   /api/drive/files                    // Create new file
+POST   /api/drive/files/:id/draft-edit     // Tier B edit draft
+POST   /api/drive/files/:id/share          // Tier B share draft
+6.2 GitHub endpoints
+POST   /api/github/connect                 // Set PAT, validate
+GET    /api/github/repos                   // List authorized repos
+POST   /api/github/repos                   // Add repo to allowlist
+DELETE /api/github/repos/:id               // Remove from allowlist
+GET    /api/github/search?q=...&repos=...  // Code search
+GET    /api/github/repos/:full_name/file?path=... // Read file
+GET    /api/github/repos/:full_name/tree   // Tree listing
+GET    /api/github/repos/:full_name/recent // Recent commits + open PRs/issues
+
+7. Acceptance Criteria
+#
+Acceptance criterion
+How to verify
+1
+OAuth flow connects Drive scope to existing Gmail account
+Run setup, complete OAuth, verify scope includes drive.file
+2
+Authorize-folder flow adds a folder to drive_folders
+Use Drive picker to select test folder. Verify row inserted with correct folder_id
+3
+Search query finds files in authorized folders
+Create a doc titled 'Q2 Marketing Plan' in test folder. Search 'Q2 marketing'. Verify found
+4
+Search query does NOT find files outside authorized folders
+Create doc in unauthorized folder. Verify search doesn't return it
+5
+File content fetch works for authorized folders
+Open a doc, fetch content. Verify content returned
+6
+File creation places file in correct target folder
+Create doc with target folder set. Verify file ends up in that folder
+7
+File creation generates content matching request
+Request 'one-pager on new pricing'. Verify generated content has the right structure (headline + bullets)
+8
+Tier B edit creates draft, doesn't auto-apply
+Request edit to existing doc. Verify draft created in Approvals, original unchanged
+9
+Approving edit applies changes to file
+Approve a Tier B edit. Verify file updated in Drive
+10
+GitHub PAT connects and validates correctly
+Add PAT in settings. Verify connection test succeeds
+11
+Adding repo to allowlist enables read access
+Add takeovers-site to allowlist. Verify file reads succeed
+12
+Code search finds keyword across allowlisted repos
+Search 'fareharbor'. Verify hits across multiple repos
+13
+File read includes correct content with syntax
+Read apps/api/src/routes/webhooks.ts. Verify content matches actual file
+14
+GitHub access NEVER performs write operations
+Try to call POST endpoint. Verify rejected at API gateway
+15
+Tech task dispatch includes code context when relevant
+Dispatch 'Nick fix the webhook'. Verify dispatch brief includes file path and snippet
+16
+Self-grounding works — agent reads its own /docs folder
+Ask 'how does chase logic work?'. Verify agent answers with reference to Phase 4 doc
+17
+Drive cache invalidates on file modification
+Modify a doc, search again. Verify updated content (not stale cache)
+18
+GitHub cache respects rate limits
+Simulate burst — verify caching prevents rate limit hit
+19
+File previews render correctly in Talk tab
+Find a doc, verify card UI shows title, snippet, link
+20
+GitHub previews render correctly in Talk tab
+Read a code file, verify card UI shows path, snippet with syntax
+
+8. Testing Plan
+8.1 Unit tests
+	•	Drive search query construction
+	•	File content generation prompt rendering
+	•	GitHub PAT scope validation
+	•	Code search result ranking
+	•	Cache key generation and invalidation
+8.2 Integration tests
+	•	End-to-end create file: capture → Claude generation → Drive create → confirmation
+	•	End-to-end search file: capture → Drive search → result selection → context use
+	•	End-to-end edit file: capture → draft → approval → Drive update
+	•	End-to-end code grounding: tech task → repo search → file read → dispatch with context
+	•	OAuth scope expansion: existing Gmail OAuth + new Drive scope
+8.3 Security tests
+	•	Verify drive.file scope cannot access unauthorized files
+	•	Verify PAT cannot perform write operations even if API endpoint constructed manually
+	•	Verify deleted folders are removed from authorization
+	•	Verify cache doesn't leak content between users (single-user system, but defense-in-depth)
+8.4 Adversarial tests
+	•	Brain-dump containing file path that doesn't exist — verify graceful failure
+	•	Search query with special characters — verify safe handling
+	•	File content with prompt injection text — verify Claude's classification stays bounded
+	•	PAT revoked outside the system — verify next call detects and prompts re-auth
+
+9. Dependencies & Prerequisites
+Before starting Phase 7
+	•	Phases 1-6 complete and stable in production
+	•	Google Cloud project from Phase 3 still active
+	•	Selmen has decided which Drive folders to authorize (operations, marketing, templates, reports — recommended starting set)
+	•	GitHub PAT generated with read-only scopes
+	•	Repository allowlist decided (recommended: takeovers-cos, takeovers-site, takeovers-platform)
+
+10. Risks & Mitigations
+Risk: Agent reads or exfiltrates sensitive files
+Mitigation: drive.file scope strictly limits to authorized folders. Selmen authorizes folders explicitly via Drive picker. Sensitive folders (financial, legal, personal) are simply never authorized. If sensitive content lands in an authorized folder by mistake, Selmen revokes the folder.
+Risk: Generated file content is wrong or off-tone
+Mitigation: Generated files are a starting draft. Selmen reviews before sharing. The agent learns Selmen's style over time per Phase 6 — first month of generated docs may need editing, less so over time.
+Risk: GitHub PAT is leaked
+Mitigation: PAT is read-only — leakage doesn't enable write damage. Stored encrypted at rest. Easy to rotate. If leaked, Selmen revokes in GitHub settings, generates new one, updates env var.
+Risk: Code summarization is technically wrong
+Mitigation: Code summaries are framed as "here's what I think this does — verify with Nick". Never presented as authoritative. Critical for the agent to acknowledge uncertainty when summarizing complex code.
+Risk: Drive API rate limits during heavy use
+Mitigation: Drive API quotas are generous (10K queries/100sec/user). The agent's volume is well under. Implement exponential backoff just in case.
+Risk: Selmen authorizes a folder, then later wants to revoke
+Mitigation: Settings page has revoke per folder. On revoke, agent immediately stops accessing. Cache for that folder is purged. file_references rows referencing the folder remain (for audit) but new operations rejected.
+
+11. Phase 7 Sign-Off Checklist
+	•	All acceptance criteria in Section 7 verified in staging
+	•	All Section 8 tests passed including security and adversarial tests
+	•	Drive folder authorization flow works end-to-end
+	•	GitHub PAT setup and validation works
+	•	At least 5 real Drive operations executed in staging (create, search, read, edit-draft, attach-to-email)
+	•	At least 5 real GitHub reads executed in staging (file read, search, tree, PRs, commits)
+	•	Self-grounding test passes — agent answers a question about its own architecture by reading /docs
+	•	All file/repo authorization data migrated to production
+	•	Documentation in /docs is up to date
+With Phase 7 complete, the agent has reach into both Drive (cloud files) and GitHub (codebase context). Combined with all prior phases, the system can run virtually any operational task Selmen would otherwise handle himself — capturing the thought, finding or creating the needed artifacts, dispatching to the team in their style, chasing follow-up, escalating when needed, planning multi-step initiatives, and learning from every interaction.
+This concludes the seven build phases. The remaining three documents are visual diagrams that round out the documentation set: System Architecture Diagram, Data Flow Diagram, and Agent Decision Tree + Deployment Diagram. Drop them in /docs alongside everything else.
