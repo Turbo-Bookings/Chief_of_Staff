@@ -43,6 +43,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use(
   clerkMiddleware({
     publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+    authorizedParties: process.env.API_BASE_URL
+      ? [process.env.API_BASE_URL]
+      : undefined,
   }),
 );
 
