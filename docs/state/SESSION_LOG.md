@@ -29,6 +29,39 @@ Entry format:
 
 ---
 
+## 2026-05-02 (afternoon) — Clerk auth chase; identified Replit-Auth integration override loop
+
+**Driver:** Claude (Claude Code on Mac) with Selmen
+**Branch:** `main` (`716f4bf` after merging PRs #10–13)
+**Phase:** 1 — PWA Shell + Capture (~98% complete; blocked by Replit-platform behavior)
+
+### Did
+- Confirmed PWA Bearer-token wiring is live: `Authorization: Bearer <token>` is sent on `/api/threads/principal` after the new bundle (`index-B2Ir7c9B.js`) deployed.
+- Diagnosed why every Republish kept failing the same way: **Replit's "Replit Auth" managed integration owns a Replit-provisioned Clerk app (`tender-hippo-62`, instance `ins_3D6yK87...`), and re-injects its `pk_live_*` and `sk_live_*` into the production deployment env on every Republish**, overwriting any manual edits to TurboBookings values.
+- Server-side error after the bundle fix landed: `x-clerk-auth-reason: jwk-kid-mismatch` — server expected `kid='ins_3D6yK87...'` (Replit-managed) while frontend signed JWTs with `kid='ins_3D9TSR...'` (TurboBookings). Confirms the override loop.
+- Verified the workspace had diverged from origin (2 local Replit auto-publish commits ahead, 6 GitHub commits behind). Force-synced via `git reset --hard origin/main` and Republished — that produced the new bundle but didn't break the secret-injection loop.
+- Tried "Delete Clerk app" via the Replit Auth Configure tab; click landed but no clear confirmation surfaced and the loop persisted.
+
+### Decided
+- Stop fighting the Replit Auth integration injection loop. Two paths forward, Selmen choosing while at the gym:
+  - **Option A — New Replit project from GitHub** (~1.5h): clone repo into a fresh project, decline Auth integration on import. If Replit doesn't auto-spawn the integration, all keys stick.
+  - **Option B — Migrate to Render** (~3-4h): durable answer, no managed integrations.
+
+### Deferred
+- Phase 1 sign-off until the auth-verification loop is broken.
+- Old workspace cleanup (`.claude/settings.local.json` etc.) — irrelevant if we move to a new project anyway.
+
+### Blockers
+- Replit Auth managed integration overriding production Clerk secrets on every Republish. Platform behavior, not a code issue.
+
+### Security action items (deferred until after sign-off)
+- Rotate Twilio Auth Token, Upstash Redis token, Clerk Secret Key (all touched the conversation transcript).
+
+### Next
+- Selmen picks Option A or B. CURRENT.md has the full transfer checklist (12 secrets) and gates for either path.
+
+---
+
 ## 2026-05-02 (early morning, marathon) — Phase 1 functional at data layer; Clerk auth broken at UI
 
 **Driver:** Claude (Claude Code) with Selmen
