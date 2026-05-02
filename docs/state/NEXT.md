@@ -1,23 +1,55 @@
 # Next Session — Resume Prompt
 
-> Copy-paste the block below as the first message of your next Claude Code session (or Replit Agent session). It's the literal handoff.
+> Copy-paste the block below as the first message of your next Claude Code session. It's the literal handoff.
 
 ---
 
 ```
 We're picking up the takeovers-cos build. Repo: Turbo-Bookings/Chief_of_Staff.
+Last session was a marathon — we got Phase 1 functional at the data layer
+but auth at the UI layer broke. Don't start any new work until you've read:
 
-Before doing anything else:
-1. `git fetch origin` and `git checkout staging && git pull` to get the latest baseline
-2. Read /CLAUDE.md, /docs/state/CURRENT.md, the latest entry in /docs/state/SESSION_LOG.md, and /docs/state/DECISIONS.md
-3. Run `git log --oneline -10` to see what shipped most recently
-4. Branch off staging for any new work: `git checkout -b feature/<name> staging`
+  /CLAUDE.md
+  /docs/state/CURRENT.md  (especially the "TL;DR for Tomorrow" + "Workspace ↔ GitHub divergence" sections)
+  /docs/state/SESSION_LOG.md  (the 2026-05-02 entry)
+  /docs/state/DECISIONS.md  (#004 and #005, both 2026-05-02)
+  /docs/state/OPEN_QUESTIONS.md  (the two URGENT items at the top)
 
-Phase 1 is ~85% done per CURRENT.md. The remaining items are listed there in priority order. Confirm with me which item to pick up.
+Then run:
+  cd /Users/selmen/Chief_of_Staff
+  git fetch origin && git checkout main && git pull
+  git log --oneline -5
 
-Authoritative spec: /docs/specs/. Phase docs are 04–10. Build environment rules in /docs/specs/03_*.txt. Schema in /docs/specs/02_*.txt.
+Today's plan, in order:
 
-When we wrap, update CURRENT.md, append to SESSION_LOG.md, and rewrite NEXT.md so the *next* session resumes cleanly.
+1) RECONCILE WORKSPACE ↔ GITHUB (first thing, no exceptions)
+   The Replit workspace has edits to App.tsx, app.ts, .replit that are
+   NOT in GitHub main. See OPEN_QUESTIONS "URGENT — Reconcile" entry.
+   Pull each modified file from Replit (via Chrome MCP / shell or just
+   ask Selmen to git push from Replit), commit on a feature branch,
+   PR through staging → main.
+
+2) FIX CLERK AUTH (Phase 1 sign-off blocker)
+   See OPEN_QUESTIONS "URGENT — Fix Clerk auth-302" entry. Symptoms,
+   hypothesis, and three candidate fixes are documented there. Try
+   `authorizedParties` config first.
+
+3) VERIFY END-TO-END
+   After (2), Selmen refreshes /talk in the browser. Expected:
+     - /api/threads/principal returns 200 with the principal_talk
+       thread + 11+ messages including the SMS captures from yesterday
+     - /api/today/tasks returns the "Do payroll by 5pm tomorrow" task
+   If yes → Phase 1 done. Update CURRENT.md.
+
+Production URL: https://chief-of-staff-selmen2.replit.app
+Twilio agent number: +17864774367
+PRINCIPAL_PHONE: +17862238995 (Selmen's mobile)
+Clerk app: TurboBookings (promoted-elephant-87.clerk.accounts.dev) — DEV instance
+Twilio creds, Redis URL, Clerk keys: all in /tmp/cos_review/twilio.env on this Mac
+                                      (and in Replit Secrets, current values)
+
+When we wrap, update CURRENT.md, append to SESSION_LOG.md, rewrite
+NEXT.md so the *next* session resumes cleanly.
 ```
 
 ---

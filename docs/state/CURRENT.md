@@ -2,63 +2,76 @@
 
 > The single source of truth for "where are we right now." Update at the end of every session. Read first at the start of every session.
 
-**Last updated:** 2026-05-01 (evening — external services configured)
+**Last updated:** 2026-05-02 (after a marathon evening session — Phase 1 functional at the data layer, Clerk auth broken at the UI layer)
 **Updated by:** Claude (Claude Code session with Selmen)
+
+---
+
+## TL;DR for Tomorrow
+
+**Phase 1 is functional end-to-end at the data layer**: SMS → Twilio webhook → production server → Whisper/Claude parse → DB write → task creation. Verified by checking runtime logs and DB.
+
+**Phase 1 is BROKEN at the visualization layer**: every authenticated `/api/*` request returns HTTP 302 instead of data. The PWA's Talk + Today tabs show empty even though the data is in the DB. Root cause is Clerk dev-mode session model (JWT-in-URL via `__clerk_db_jwt`) doesn't match the cookie-based auth our `app.ts` expects.
+
+**Workspace ≠ GitHub**: a lot of fixes were applied directly in the Replit workspace and never synced to GitHub. Reconciling that is the FIRST task tomorrow before doing any new work.
 
 ---
 
 ## Phase
 
-**Phase 1 — PWA Shell + Capture** (Doc 04). ~95% complete. Publish-ready pending Replit pull + restart.
+**Phase 1 — PWA Shell + Capture** (Doc 04). ~95% complete; auth-layer fix needed before sign-off.
 
-## What's working end-to-end
+## What works (verified via runtime logs and DB queries tonight)
 
-- pnpm workspace monorepo scaffolded per Doc 03 §2 (`artifacts/`, `lib/`, `scripts/`).
-- Postgres + Drizzle schema with 15 of the 17 spec tables (`sops`, `insights`, `analysis_runs`, email tables intentionally deferred to Phase 3 / Phase 6).
-- Express API on port 8080, React + Vite + Clerk + React Router v6 PWA on ext:3000.
-- Capture pipeline: text → Claude Sonnet 4.6 parse → structured JSON → DB. Voice → Replit Object Storage → Whisper → Claude → DB. Job-status polling endpoint.
-- Daily-briefing endpoint and regenerate endpoint.
-- Talk, Today, and Team tabs functional. Approvals / Inbox / Projects / Insights are placeholders (per Phase 1 spec).
-- Twilio inbound-SMS webhook route exists at `/api/webhooks/twilio/sms-inbound` plus delivery-status callback.
-- Feature flags exist and **default OFF** (matches Doc 03 §6).
-- Replit AI proxy → Anthropic + OpenAI (no separate API keys needed).
-- **Twilio account configured** — agent number `+17864774367`, inbound SMS webhook pointing at the Replit dev URL, signature validation enforced in production.
-- **Upstash Redis provisioned** — `takeovers-cos` free tier in `us-east-1`, `rediss://` URL configured. Unblocks BullMQ + the morning/evening briefing cron.
-- **All 5 production secrets set** in Replit: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_AGENT_NUMBER`, `PRINCIPAL_PHONE`, `REDIS_URL`.
+- Production deployment running at `https://chief-of-staff-selmen2.replit.app`
+- Health endpoint: `postgres: ok`, `redis: ok`, `object_storage: ok` (`ai_proxy` falsely reports `not_configured` — health check has wrong env var name; runtime AI calls work)
+- Twilio webhook → SMS captured. Verified: messageId=18 from `+17862238995` at 01:02:01 UTC, body 58 chars, capture pipeline ran end-to-end and created task "Do payroll by 5pm tomorrow"
+- Postgres + Drizzle schema, BullMQ + Upstash Redis, Replit Object Storage all operational
+- Daily-briefing endpoints exist (cron schedule registered when REDIS_URL present)
+- PWA loads, Clerk loads, sign-in flow works (you signed in tonight with `sel@takeoversrentals.com` via Google)
+- The 7-tab navigation is wired and rendering
 
-## What's blocking calling Phase 1 done
+## What's broken
 
-| # | Item | Owner | Status |
-|---|------|-------|--------|
-| 1 | Twilio Account SID + Auth Token in Replit secrets | Selmen | ✅ Done |
-| 2 | Twilio number provisioned and webhook configured | Selmen | ✅ Done (`+17864774367`) |
-| 3 | `PRINCIPAL_PHONE` set | Selmen | ✅ Done |
-| 4 | Twilio inbound webhook pointed at Replit URL | Both | ✅ Done |
-| 5 | `REDIS_URL` set so the briefing cron and BullMQ run out-of-process | Both | ✅ Done |
-| 6 | Replit pulls latest `main` and is restarted via Publish so new secrets load | Selmen | ⏳ **Next step** |
-| 7 | End-to-end smoke test: SMS from `PRINCIPAL_PHONE` → agent number → message appears in Talk thread | Both | ⏳ Next |
-| 8 | Voice memo via PWA → transcribed → parsed → appears in Talk thread | Both | ⏳ Next |
-| 9 | Wait for 07:00 ET morning brief, verify it lands in Today tab | Both | ⏳ Next morning |
-| 10 | Web push notifications for the briefing (Acceptance #10) | Claude | Deferred — see OPEN_QUESTIONS |
-| 11 | Sentry instrumentation (Doc 03 §11.2) | Claude | Deferred — see OPEN_QUESTIONS |
-| 12 | Daily Postgres backup script (Doc 03 §8) | Claude | Deferred |
-| 13 | Tests | Claude | Deferred — substantial scope |
+| # | Issue | Severity | Notes |
+|---|-------|----------|-------|
+| 1 | **Authenticated `/api/*` calls return HTTP 302 instead of data** | **High — Phase 1 blocker for UI verification** | Clerk dev keys use JWT-in-URL (`__clerk_db_jwt` query param + localStorage), our API uses cookie-based auth. Mismatch → no session detected → `requireAuth()` redirects → empty UI |
+| 2 | `principal.clerk_user_id` stays `NULL` after sign-in | High — depends on #1 | The auth-claim happens inside the auth middleware, so until #1 is fixed, no Clerk user can claim the principal record |
+| 3 | Health check reports `ai_proxy: not_configured` despite working | Low — cosmetic | `routes/health.ts` checks `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` but actual code uses `AI_INTEGRATIONS_OPENAI_API_KEY` / `AI_INTEGRATIONS_ANTHROPIC_API_KEY` |
+| 4 | Outbound SMS to user's phone blocked by carrier | Medium — Phase 2 blocker | A2P 10DLC registration not done. Inbound works fine; outbound to `+1786…` gets `30034` |
 
-## Known issues to track
+## What was done tonight (chronological highlights)
 
-- **A2P 10DLC registration** is not yet completed for the Twilio agent number. Inbound SMS to the agent (from your phone) **works without it**. Outbound SMS to your team (Phase 2) **will be filtered/throttled by US carriers** without 10DLC. Initiate registration before Phase 2 dispatch ships.
-- **`replit.md` is partially out of date** — references Wouter (it's React Router v6 since commit 79be5c7), and compresses Phases 2-7 into "Phase 2/3" which conflicts with `/docs/specs/`. Cleanup item.
-- **Two parallel briefing endpoints** — `/today/brief` reads from `messages` (system messages); `/briefing/today` reads from the `briefings` table. Both are populated by the same generator so they stay in sync, but the dual paths should be consolidated.
-- **Schema deviations from Doc 02** — see DECISIONS.md #003 (UUID vs serial int PKs) and `messages.read_at` / `messages.sender_id` not yet present.
+1. Audited Phase 1 build vs Doc 04. ~85% complete.
+2. Drove Chrome to Twilio, Upstash, Replit. Captured creds, provisioned `takeovers-cos` Redis (us-east-1, free tier), pasted 5 secrets into Replit (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_AGENT_NUMBER` `+17864774367`, `PRINCIPAL_PHONE` `+17862238995`, `REDIS_URL`).
+3. First Republish picked up secrets — health endpoint flipped to all OK including Redis.
+4. Sent first test SMS → Twilio webhook returned 403 because `req.protocol` reports `http` behind Replit's proxy → signature mismatch. Added `API_BASE_URL=https://chief-of-staff-selmen2.replit.app` secret. Republished. Webhook signature validation now passes.
+5. Sent second SMS → webhook returned 200 ✅, agent generated TwiML reply ✅, but **Twilio carrier rejected the outbound reply with `30034` (A2P 10DLC unregistered)** — *inbound captured fine, outbound just couldn't deliver the confirmation*.
+6. Tried to view captured data in the PWA → black screen. Console showed `Failed to load Clerk JS` from `clerk.chief-of-staff-selmen2.replit.app/npm/...` (`ERR_CONNECTION_CLOSED`).
+7. **Discovered Phase 1 was built using Replit's auto-provisioned "Clerk Auth" managed integration** (Replit created a Clerk app `tender-hippo-62` without any user signup, hardcoded the publishable key into `.replit` userenv.shared, set up `publishableKeyFromHost(window.location.hostname, key)` in both `App.tsx` and `app.ts` to derive a `clerk.<replit-host>.replit.app` satellite domain that was never DNS-configured).
+8. User signed up to Clerk with their Google identity → created new app `TurboBookings` with key `pk_test_cHJv...` (decodes to `promoted-elephant-87.clerk.accounts.dev`).
+9. Swapped CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY, VITE_CLERK_PUBLISHABLE_KEY (Configuration) to TurboBookings values via the Replit Secrets pane. Reset `principal.clerk_user_id = NULL` via psql so the new Clerk user could claim it.
+10. Replit Agent edited `App.tsx` to remove `publishableKeyFromHost`. **It claimed to also edit `app.ts` but did NOT.** This came back to bite us.
+11. Republish kept producing the same PWA bundle (`index-DW5AJhTr.js`) because **the PWA is built ahead of time and committed to `artifacts/cos-pwa/dist/public/`; deploys serve `dist/` as-is and never rebuild from source**.
+12. Manually rebuilt the PWA in the workspace shell with `VITE_CLERK_PUBLISHABLE_KEY` set inline → produced `index-D1vXJveU.js` with the new key baked in. Republished. Black screen finally replaced by the working landing page.
+13. Sent a third test SMS → production webhook ran, capture pipeline created the task in DB. ✅
+14. User signed in to PWA → Talk and Today tabs rendered EMPTY. Network tab shows every `/api/*` request returns `302 → location: /`.
+15. Found that `app.ts` (server) STILL had `publishableKeyFromHost`. Sed-edited it directly in the workspace to use `process.env.CLERK_PUBLISHABLE_KEY!` directly. Republished. Compiled api-server bundle confirmed contains the new code.
+16. **Auth still 302**. Realized Clerk dev keys use JWT-in-URL pattern (`__clerk_db_jwt` query param) which the API server's cookie-based auth can't read. This is the proper next-day fix.
 
-## What's intentionally deferred
+## Workspace ↔ GitHub divergence (CRITICAL FOR TOMORROW)
 
-- Dispatch to team members (Phase 2)
-- Email handling across the 3 Gmail accounts (Phase 3)
-- Follow-up scheduler / chase / escalations (Phase 4)
-- Projects (Phase 5)
-- Insights + learning loop (Phase 6)
-- Drive + GitHub integration (Phase 7)
+**The Replit workspace has the following changes that are NOT in GitHub `main`:**
+
+1. `artifacts/cos-pwa/src/App.tsx` — `publishableKeyFromHost` call replaced with hardcoded `pk_test_cHJvbW90ZWQtZWxlcGhhbnQtODcuY2xlcmsuYWNjb3VudHMuZGV2JA` literal
+2. `artifacts/api-server/src/app.ts` — `publishableKeyFromHost(...)` replaced with `process.env.CLERK_PUBLISHABLE_KEY!` directly
+3. `.replit` line 37 — `VITE_CLERK_PUBLISHABLE_KEY` updated to the new TurboBookings key
+4. `artifacts/cos-pwa/dist/public/` — fresh build with `index-D1vXJveU.js` containing the new key
+5. `artifacts/api-server/dist/` — fresh build of the api-server (compiled bundle dated `May 2 01:59`)
+
+GitHub main is at commit `6190c53` (the merged docs PR). It does NOT have any of the above. **Sync this BEFORE any new code work tomorrow** so the source of truth doesn't drift.
+
+Approach: pull the workspace files into the local clone, commit on a feature branch, PR through `staging` → `main`. The `dist/` should NOT be re-committed (tomorrow's CI/build pipeline should handle that — see Decisions below).
 
 ## Environments
 
@@ -66,10 +79,23 @@
 |-----|-----|--------|--------|
 | Local | `localhost:3000` (PWA) / `:8080` (API) | feature branches | Working |
 | Staging | _not yet wired_ | `staging` | Branch exists; no Replit deployment yet |
-| Production | `https://68a0cd3c-d50a-4879-a537-a66d5976f65d-00-11gas2gvl3j2a.kirk.replit.dev` | `main` | Active in Replit |
+| Production | `https://chief-of-staff-selmen2.replit.app` | `main` (with workspace drift, see above) | Functional at data layer; auth broken at UI layer |
 
-Custom domains (`cos.takeoversrentals.com`, `staging.cos.takeoversrentals.com`) per Doc 03 §9.5 not yet configured.
+## Sensitive values that exist in the conversation transcript (rotate after Phase 1 sign-off)
 
-## Next concrete action
+- `TWILIO_AUTH_TOKEN` — Twilio Console → Account → API keys & tokens → "Request a new auth token"
+- Upstash Redis token — Upstash → DB → Reset Credentials
+- The Clerk publishable key is now hardcoded in `App.tsx` (it's a public dev key — *publishable* keys are designed to be public, this is fine; secret key is what matters and is still in env)
+- `CLERK_SECRET_KEY` (sk_test_*) — Clerk → API keys → rotate
 
-See `NEXT.md` for the literal first prompt to paste at the start of the next session.
+## Next concrete actions
+
+See `NEXT.md` for the literal first prompt for tomorrow's session.
+
+The first three things to do tomorrow, in order:
+
+1. **Reconcile workspace ↔ GitHub.** Pull the workspace's modified files into the local clone, commit on a feature branch, PR through staging → main. Specifically the App.tsx + app.ts + .replit edits. Do not commit `dist/` — handle that via DECISIONS.md #004.
+2. **Fix Clerk auth properly.** The cookie-vs-JWT issue. Likely fixes: (a) configure `clerkMiddleware` with explicit `authorizedParties: [PRODUCTION_URL]`, (b) ensure the PWA's Clerk SDK is using the proper session token format, (c) potentially enable cookie sync via Clerk's setup (not just localStorage). Reference: `https://clerk.com/docs/references/nextjs/clerk-middleware`. Verify by hitting `/api/threads/principal` from the signed-in browser and getting a 200.
+3. **Once auth works, claim the principal.** First auth'd request will trigger the principalAuthMiddleware claim path. Verify `clerk_user_id` is set in DB.
+
+After those three: the SMS task you sent ("Do payroll by 5pm tomorrow") will appear in your Today tab and you can declare Phase 1 sign-off complete.

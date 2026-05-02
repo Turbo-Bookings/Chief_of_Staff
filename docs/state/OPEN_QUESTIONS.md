@@ -17,6 +17,69 @@ Entry format:
 
 ---
 
+## URGENT — Reconcile Replit workspace ↔ GitHub before any new code
+
+**Raised:** 2026-05-02
+**Phase context:** Phase 1 finishing.
+**Owner:** Claude (next session)
+**Decide-by:** First action of next session.
+
+The following files have edits in the Replit workspace that are NOT in GitHub `main`:
+- `artifacts/cos-pwa/src/App.tsx` — hardcoded Clerk publishable key
+- `artifacts/api-server/src/app.ts` — `publishableKeyFromHost` removed
+- `.replit` line 37 — `VITE_CLERK_PUBLISHABLE_KEY` updated to TurboBookings key
+- `artifacts/cos-pwa/dist/public/` — fresh build with `index-D1vXJveU.js`
+- `artifacts/api-server/dist/` — fresh compiled bundle dated `May 2 01:59`
+
+GitHub main is at commit `6190c53`.
+
+Plan:
+1. Pull each of the four source files (NOT the `dist/` directories) from the Replit workspace into the local clone.
+2. Commit on a feature branch off `main`.
+3. PR to `staging`, then `staging` → `main`.
+4. Once merged, `git pull` in Replit Shell to sync the workspace back.
+5. Decide the `dist/` story per DECISIONS.md #005.
+
+---
+
+## URGENT — Fix Clerk auth-302 issue (Phase 1 sign-off blocker)
+
+**Raised:** 2026-05-02
+**Phase context:** Phase 1 finishing.
+**Owner:** Claude (next session)
+**Decide-by:** Before declaring Phase 1 done.
+
+After signing in to the production PWA with `sel@takeoversrentals.com`, every authenticated `/api/*` request returns HTTP 302 → `location: /` instead of the expected JSON. UI shows empty Talk + Today tabs even though the data is in the production DB (verified — message id=18, task `"Do payroll by 5pm tomorrow"` created at 01:02:08 UTC).
+
+Symptoms:
+- Clerk's own `touch` endpoint returns 200 (your session IS valid)
+- Our API returns 302 from `requireAuth()` middleware because it doesn't see the session
+- Network tab shows `__clerk_db_jwt=dvb_*` query param on Clerk requests — this is Clerk dev-mode's JWT-in-URL pattern
+
+Root cause hypothesis: Clerk dev keys store the session as a JWT in localStorage and pass it via query params/headers, NOT as a same-origin cookie. Our `clerkMiddleware` (from `@clerk/express`) is configured for cookie-based auth and doesn't see the JWT.
+
+Likely fixes (in order of likelihood):
+1. Add `authorizedParties: [process.env.API_BASE_URL]` to `clerkMiddleware` config so cross-origin sessions are accepted
+2. Configure Clerk frontend SDK to set cookies on the app domain (rather than rely on JWT-in-URL)
+3. Switch to Clerk *production* keys + custom domain, which uses cookies natively (proper long-term fix; bigger change)
+
+Reference: `https://clerk.com/docs/references/nextjs/clerk-middleware` and `https://clerk.com/docs/backend-requests/handling/manual-jwt`
+
+Verify the fix worked by hitting `/api/threads/principal` from the signed-in browser and getting a 200 with the principal_talk thread + 11+ messages.
+
+---
+
+## DEBT — Fix Replit deploy to rebuild PWA from source
+
+**Raised:** 2026-05-02
+**Phase context:** Build pipeline / deploy infrastructure.
+**Owner:** Claude (post Phase 1 sign-off)
+**Decide-by:** Before Phase 2 dispatch ships.
+
+See DECISIONS.md #005. Currently `dist/public/` is committed and the deploy serves it as-is. Long-term, change `.replit` deploy config to run `pnpm --filter @workspace/cos-pwa run build` during deploy. Then remove `dist/` from the repo + `.gitignore` it.
+
+---
+
 ## ACTION ITEM — Rotate Twilio Auth Token and Upstash Redis token after verification
 
 **Raised:** 2026-05-01 (evening)

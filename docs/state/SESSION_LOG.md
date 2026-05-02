@@ -29,6 +29,54 @@ Entry format:
 
 ---
 
+## 2026-05-02 (early morning, marathon) — Phase 1 functional at data layer; Clerk auth broken at UI
+
+**Driver:** Claude (Claude Code) with Selmen
+**Branch:** `feature/handoff-2026-05-02` (off `main`) — workspace has direct edits not yet in GitHub
+**Phase:** 1 — PWA Shell + Capture (~95% complete; final blocker is Clerk auth fix)
+
+### Did
+- Audited Phase 1 build vs Doc 04 acceptance criteria. Identified gaps and started closing them.
+- Drove Chrome to Twilio Console, Upstash, Replit IDE. Captured creds, provisioned Upstash Redis (`takeovers-cos`, us-east-1, free tier), pasted 5 secrets into Replit (TWILIO_*, PRINCIPAL_PHONE, REDIS_URL).
+- First Republish flipped Redis to `ok`; BullMQ + briefing cron alive.
+- Diagnosed two webhook failures sequentially:
+  - `error 11200` → signature mismatch from `req.protocol === "http"` behind Replit proxy. Added `API_BASE_URL` secret, fixed.
+  - `error 30034` → A2P 10DLC unregistered, US carriers blocked outbound TwiML reply. **Inbound capture still works**; outbound is a Phase 2 blocker.
+- PWA black screen on production: traced to `publishableKeyFromHost(window.location.hostname, key)` deriving a `clerk.<replit-host>.replit.app` satellite domain that was never DNS-configured. Replit's auto-provisioned "Clerk Auth" managed integration during Phase 1 had wired this up.
+- User signed up to Clerk independently → created TurboBookings app → swapped `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `VITE_CLERK_PUBLISHABLE_KEY` to TurboBookings values. Reset `principal.clerk_user_id = NULL` via psql so the new Clerk user can claim it.
+- Replit Agent edited `App.tsx` to remove `publishableKeyFromHost` (claimed to also edit `app.ts` — did not). Manual sed-edit later got `app.ts` too.
+- **Discovered: production deployment serves a pre-built `artifacts/cos-pwa/dist/`** — Republish does NOT rebuild the PWA from source. Manually rebuilt with the right env, committed `dist/` in workspace.
+- Captured SMS at `01:02:01 UTC` (`Do payroll by 5pm tomorrow`) processed end-to-end. messageId=18 in DB. Capture job complete. Task created. ✅
+- All `/api/*` calls return 302 to authenticated browser requests. Diagnosed root cause as Clerk dev-mode JWT-in-URL session model vs API's cookie-based auth.
+
+### Decided
+- Hardcoded `pk_test_cHJv...` publishable key directly in `App.tsx` (it's a public dev key; safe to commit). See DECISIONS.md #004.
+- Removed `publishableKeyFromHost` from `app.ts` server-side. See DECISIONS.md #004.
+- A2P 10DLC registration deferred to Phase 2 prep.
+- Token rotation deferred to after Phase 1 sign-off (everything works end-to-end).
+
+### Deferred
+- **Clerk auth fix** — proper config of `clerkMiddleware` to handle dev-mode JWTs. Tomorrow's first task.
+- **Workspace ↔ GitHub reconciliation** — workspace has edits to App.tsx, app.ts, .replit, dist/ that need to be committed to repo. Tomorrow.
+- **`dist/` handling** — committing built artifacts is fragile. See DECISIONS.md #004 — long-term, deploy should rebuild from source.
+- **Health check `ai_proxy: not_configured` cosmetic bug** — wrong env var name in `routes/health.ts`.
+- Web push (Acceptance #10), Sentry instrumentation, daily backup script, staging Replit deployment, custom domain wiring — all from prior OPEN_QUESTIONS.
+
+### Blockers
+- The auth-302 issue blocks UI verification of the captured data. Data IS in production DB; user just can't see it in the PWA until Clerk fix lands.
+
+### Security action items (when Phase 1 declared done)
+- Rotate Twilio Auth Token (touched conversation transcript)
+- Rotate Upstash Redis token (touched conversation transcript)
+- Rotate Clerk Secret Key (touched conversation transcript)
+- The hardcoded publishable key in App.tsx is fine — *publishable* keys are public by design
+
+### Next
+- Resume protocol: read CURRENT.md "TL;DR for Tomorrow" + this entry.
+- First action: **reconcile workspace ↔ GitHub.** Then fix Clerk auth. Then verify SMS capture in UI. Then declare Phase 1 done.
+
+---
+
 ## 2026-05-01 (evening) — External services configured, secrets set in Replit
 
 **Driver:** Claude (Claude Code) with Selmen
