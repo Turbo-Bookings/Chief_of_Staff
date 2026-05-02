@@ -144,7 +144,7 @@ Phase 1 does NOT dispatch to team members (that's Phase 2). `proposed_owner_hint
 ## Principal Seed Data
 
 - **Name**: Selmen Hassen
-- **Email**: `selmen@takeoversrentals.com` (must match Clerk account email exactly for principal binding)
+- **Email**: `sel@takeoversrentals.com` (must match Clerk account email exactly for principal binding)
 - **Briefing times**: 07:00 (morning), 18:00 (evening)
 - **Timezone**: America/New_York
 
