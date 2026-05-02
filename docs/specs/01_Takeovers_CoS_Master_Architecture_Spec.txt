@@ -1,0 +1,213 @@
+TAKEOVERS
+CHIEF OF STAFF AGENT
+Master Architecture Specification
+Version 1.0  •  April 2026
+Owner: Selmen Hassen
+Project: takeovers-cos (standalone Replit project)
+Status: Draft for build kickoff
+
+Contents
+1. Executive Summary
+2. The Problem This Solves
+3. System Overview — The Four Loops
+4. PWA Structure — The Command Center
+5. Communication Channels
+6. Authority Rules
+7. Tech Stack
+8. Security Model
+9. Companion Documents
+10. Open Decisions
+
+1. Executive Summary
+This document specifies the architecture of a personal Chief of Staff AI agent built to operate as Selmen's right hand across day-to-day execution at Takeovers Miami ATV Rentals and the broader Takeovers operation (Miami, Dallas, Houston, plus partner-led expansion).
+The agent is not a general assistant. It has standing authority over delegation, follow-up, and team communication. It captures continuously, dispatches tasks autonomously to the appropriate team member in their preferred style and channel, chases down loose ends, escalates when humans go silent, and learns over time from patterns it observes.
+It is built as a standalone Replit project (takeovers-cos), separate from the customer-facing Takeovers Unified Platform, with its own database, deployment, and security boundary. It exposes a Progressive Web App as its primary interface, supplemented by SMS for mobile-first capture and team communication.
+Primary outcome: Selmen recovers time spent on capture, dispatch, and follow-up — and reallocates it to CEO work and AI R&D.
+2. The Problem This Solves
+Selmen leads three functions simultaneously — CEO, marketing director, AI R&D oversight — across an 11-person team plus partners and a realtor, spanning Florida and Texas with active expansion. The constraint is not capability. The team executes tasks at roughly 80% of Selmen's standard, which is sufficient. The constraint is the gap between intent and dispatch.
+Specifically, three failure modes recur:
+	•	Capture failure — ideas, tasks, and follow-ups are not written down, so they evaporate before reaching the team.
+	•	Dispatch failure — tasks that do get captured are not delegated because the brain-dump-to-handoff conversion is friction-heavy and uncomfortable in the middle of a busy day.
+	•	Follow-up failure — tasks that are delegated are not chased, so missed deadlines surface as fires (the recent Fareharbor migration is the canonical example).
+The Chief of Staff agent is designed specifically to close these three loops, plus a fourth that compounds value over time: pattern detection and SOP generation.
+3. System Overview — The Four Loops
+The agent operates as a persistent service running four interlocking loops. Each loop addresses one of the failure modes above, plus a learning loop that improves the system continuously.
+3.1 Loop 1 — Capture
+Purpose: Nothing Selmen says is lost.
+The agent maintains a continuous, always-available thread. Selmen can voice-memo or text the agent at any time, from anywhere. The agent transcribes (Whisper API for voice), parses the input through Claude, and decides what type of artifact it represents:
+	•	Task to delegate to a team member
+	•	Reminder for Selmen himself
+	•	Decision or context worth remembering
+	•	Question the agent should answer directly
+	•	Email, message, or document the agent should draft
+	•	Project to break down into milestones
+Output of this loop: a structured entry in the agent's database, surfaced in the appropriate place in the PWA. This loop is what makes the system safe to brain-dump into.
+3.2 Loop 2 — Dispatch
+Purpose: Tasks reach the right person, in the right channel, in their preferred style.
+When Loop 1 identifies a task to delegate, Loop 2 takes over. It selects the owner from the team profile database (matched against the task's nature and the team member's responsibility area), drafts the task brief in that person's communication style (detailed and contextual for Nick/Josh/Oscar; terse and direct for Orlando/Joan/Tahir/Kathy/Karina/Richard/Brandon), proposes a deadline based on task type and existing workload, and chooses the channel (SMS by default, email when the task needs a paper trail or is complex).
+By default, Loop 2 dispatches autonomously. Tier-2 communications (external partners, legal, anything financial) are drafted into the Approvals tab for Selmen's review before sending.
+3.3 Loop 3 — Chase
+Purpose: Nothing falls through the cracks.
+Every dispatched task enters the follow-up scheduler. The scheduler tracks status — sent, acknowledged, in progress, complete, blocked — and runs nudges at intervals appropriate to the task type and the team member. Routine internal tasks get a soft check-in at 24 hours of silence, a firmer one at 48 hours, and an escalation alert to Selmen at 72 hours. High-stakes tasks (Fareharbor-style migrations, partner commitments) follow a tighter cadence.
+This is the loop that would have caught the Fareharbor migration before it became a fire. It runs constantly without any input from Selmen.
+3.4 Loop 4 — Briefing
+Purpose: Selmen knows what's happening without having to ask.
+Twice daily — morning and end-of-day — the agent generates a briefing surfaced on the Today tab and pushed via SMS if Selmen is not in the PWA. The morning brief covers what's on his plate today, what's overdue, what the team accomplished overnight, what's blocked. The evening brief covers what moved during the day, what slipped, and what to expect tomorrow.
+Briefings are generated by Claude based on the day's activity in the agent's database. They are short — under a minute to read — and prioritized.
+3.5 Loop 5 — Learning (compounds over time)
+Purpose: The agent gets better at running Selmen's life every week it runs.
+Every interaction is logged with rich context. Once a week, a Claude Opus job runs over the prior week's logs and identifies patterns: tasks delegated repeatedly (SOP candidates), drafts Selmen edits in consistent ways (style preferences to internalize), follow-ups that consistently take more than one nudge (process problems), topics where Selmen overrides the agent (capability gaps), and team members whose response patterns are slipping (early warning signal).
+Output lands in the Insights tab as recommendations Selmen approves or dismisses. Approved patterns become SOPs that the agent uses thereafter. Once a month, a higher-order Opus job looks at cross-patterns — bottlenecks, recurring fires, workload imbalance across the team — and outputs strategic recommendations.
+4. PWA Structure — The Command Center
+The PWA is the primary interface. It is mobile-first (most use happens on phone), but works on desktop. It lives at cos.takeoversrentals.com (production) and staging.cos.takeoversrentals.com (staging). The PWA has seven tabs.
+4.1 Tab 1 — Talk
+Continuous thread with the agent. Voice button records and transcribes via Whisper. Text input for quick typed messages. File and screenshot upload supported. The thread persists across sessions — closing and reopening the app picks up where Selmen left off. This is where ad-hoc capture happens.
+4.2 Tab 2 — Today
+The home screen. Top of the tab shows the current daily brief (auto-refreshed at 7 AM and 6 PM local time). Below it: Selmen's prioritized to-do list — agent-prioritized but tap-to-reorder, tap-to-expand, tap-to-reassign, tap-to-kill. Below that: a stream of what the team has accomplished or escalated since the last brief.
+4.3 Tab 3 — Approvals
+Anything the agent drafted but is not authorized to send autonomously. Each item shows the recipient, the channel (SMS/email), the draft, and a one-tap Approve / Edit / Reject control. Items here are time-sensitive and are also surfaced in the daily brief if they sit unactioned for more than a few hours.
+4.4 Tab 4 — Inbox
+Unified view across the three Gmail accounts (sel@takeoversrentals.com, selmen@yourmusicmanager.com, soselman@gmail.com). Each account is a sub-tab. Important emails the agent has flagged for Selmen's eyes appear at the top of the relevant sub-tab. Already-handled emails carry a status badge indicating what the agent did (replied, archived, forwarded, filed). Drafts awaiting approval surface here and also in the Approvals tab.
+4.5 Tab 5 — Team
+One card per team member. Each card shows: name, role, current open tasks, last contact, response patterns (avg time-to-acknowledge, avg time-to-complete), what they're currently blocked on, and preferred communication style. Tap a name to see the full thread history with that person. An Add Member button lets Selmen add someone new — name, role, comm style, channel, contact info, context. The agent immediately incorporates the new member into routing logic.
+4.6 Tab 6 — Projects
+Multi-step initiative tracking. Each project (e.g. Fareharbor migration, Dallas grand opening, new SOP rollout) is a card with milestones, owners per milestone, dependencies, and a risk indicator. Projects are created either by Selmen explicitly or automatically when the agent detects that a brain-dump describes a multi-step initiative.
+4.7 Tab 7 — Insights
+Output of Loop 5. Weekly pattern reports, SOP recommendations, workflow suggestions, monthly cross-pattern analyses. Each insight has Approve / Dismiss / Snooze controls. Approved insights become SOPs or workflow changes the agent applies thereafter.
+5. Communication Channels
+5.1 Selmen ↔ Agent
+	•	Primary: PWA, all seven tabs. Continuous thread in the Talk tab.
+	•	Secondary: SMS to the agent's dedicated Twilio number. Voice memos via MMS, transcribed on receipt. The agent can also push to Selmen via SMS when something needs immediate attention and he's not in the PWA.
+5.2 Agent ↔ Team
+	•	Default: SMS via Twilio. Green bubbles are acceptable. The agent texts from a dedicated business number identified as Selmen's Assistant.
+	•	Email: Used for complex tasks, multi-recipient threads, anything needing a paper trail. Especially for Nick on tech/ads where running logs matter. Sent from the appropriate Gmail account based on context.
+	•	Phone: Not in scope. The agent does not place calls in v1.
+5.3 Email Account Roles
+Account
+Role
+Agent Behavior
+sel@takeoversrentals.com
+Main business email — team and partner correspondence
+Full two-tier authority. Auto-handle internal pings, draft Tier 2 for approval.
+selmen@yourmusicmanager.com
+Account hub — Google Ads, vendor receipts, account notifications
+Mostly triage and archive. Surface anything requiring action. Few replies.
+soselman@gmail.com
+Personal email — sensitive, outside business scope
+Conservative. Tier 2 default for everything. Narrow auto-handle (newsletters, receipts, junk only). Never email out unless explicitly directed.
+6. Authority Rules
+The agent operates with broad autonomy by default and visibility into anything it does. The authority model has three tiers.
+6.1 Tier A — Autonomous (agent acts, logs the action, no approval needed)
+	•	Sending task assignments via SMS or email to internal team
+	•	Following up at 24h and 48h thresholds when team member has not responded
+	•	Sending recurring weekly check-ins to each team member
+	•	Drafting and refining task briefs from vague brain-dumps
+	•	Archiving newsletters, receipts, automated notifications
+	•	Replying to internal team pings that match clear patterns (acknowledgments, brief affirmatives)
+	•	Forwarding misrouted emails to the right person
+	•	Generating daily and weekly briefings
+	•	Updating task status, escalation flags, and team profiles based on observed patterns
+6.2 Tier B — Drafted for Approval (lands in Approvals tab)
+	•	Any email to a partner (Brandon, Richard), legal counsel, broker, or external vendor
+	•	Any reply involving money, contracts, or commitments
+	•	Replies longer than approximately a couple of sentences
+	•	Anything to a contact the agent has not communicated with before
+	•	Anything where the agent's confidence in the response is below threshold
+	•	Any communication from the personal soselman@gmail.com account
+	•	Any commitment that creates downstream obligations on Selmen's behalf
+6.3 Tier C — Selmen Only (agent reminds, does not act)
+	•	Scheduling meetings — agent surfaces the request, Selmen books
+	•	Final go/no-go on financial decisions
+	•	Anything involving the lawyer or signing documents
+	•	Hiring, firing, or compensation conversations
+6.4 Escalation
+When a team member misses a 72-hour follow-up threshold, the agent surfaces an escalation in the Today tab and pushes a notification to Selmen via SMS. Escalations include the task, the owner, the original deadline, the silence duration, and a recommended next step (often: Selmen makes a phone call).
+6.5 Kill Switch
+A single toggle in the PWA's settings drops the agent into draft-only mode globally. All Tier A actions become Tier B. This is an emergency control — never expected to be used, but available if Selmen ever feels the agent is moving faster than he wants.
+7. Tech Stack
+Layer
+Choice
+Why
+Hosting
+Replit (standalone project: takeovers-cos)
+Isolated from main platform; fast iteration; cheap; supports multiple deployments off one repo
+Frontend (PWA)
+React + Vite + Tailwind + shadcn/ui
+Same stack as Takeovers main platform; PWA-ready; mobile-first responsive
+Backend
+Node.js + Express (or Next.js API routes)
+Standard, well-documented, plays well with all needed APIs
+Database
+Postgres (Replit-hosted) + Drizzle ORM
+Relational data — tasks, threads, team, logs. Drizzle gives type safety and migration control.
+Orchestration
+n8n (already in stack)
+Visual workflow control. Critical for agent loops — Selmen can see what's running without reading code.
+Intelligence
+Claude API: Sonnet 4.6 (routine), Opus 4.7 (weekly/monthly analysis)
+Tiered cost. Sonnet handles 90% of decisions cheaply; Opus reserved for deep pattern work.
+Voice transcription
+OpenAI Whisper API
+Cheap (~$0.006/min), accurate, fast
+SMS (in/out)
+Twilio Programmable Messaging
+$1.15/mo per number + ~$0.008/msg. Already planned in main platform.
+Email (3 accounts)
+Gmail API via OAuth 2.0 (3 separate token sets)
+Read, draft, send, archive, label as Selmen. Drafts visible in actual Gmail.
+Code context
+GitHub API (read-only initially)
+Pulls repo info on tech-related tasks for grounded context
+File access
+Google Drive API (Phase 7)
+Read, create, organize files. Defer local computer access until clear need.
+Calendar
+Google Calendar API (read-only)
+Sees availability for context. Does not book meetings (Tier C).
+Auth (PWA)
+Clerk or Auth0
+Single-user system with mobile auth. Either works; Clerk is simpler.
+Push notifications
+Web Push API (PWA-native) + SMS fallback
+PWA push for non-urgent, SMS for urgent escalations
+Background jobs
+BullMQ + Redis (or n8n schedules for higher-level loops)
+Follow-up scheduler, daily briefs, weekly insights all run on schedule
+Logging / monitoring
+Postgres event log + simple admin view in PWA
+Every agent action logged with full context. Searchable in Insights tab.
+8. Security Model
+8.1 Data Isolation
+The takeovers-cos project is fully separate from the Takeovers Unified Platform. No shared database, no shared deployment, no shared API keys. A bug in either system cannot affect the other. Customer-facing data (booking records, customer PII) does not flow into the CoS agent.
+8.2 Authentication
+	•	PWA: single-user auth (Clerk or Auth0), 2FA required, session timeout at 30 days
+	•	Gmail accounts: OAuth 2.0 per account, refresh tokens encrypted at rest
+	•	Twilio: API key in env vars, separate keys per environment
+	•	Claude API: separate keys per environment, usage capped per environment
+	•	GitHub: Personal access token, read-only scopes initially
+	•	Google Drive/Calendar: OAuth scoped to least privilege
+8.3 Secrets Management
+All secrets in environment variables. No secrets in code, no secrets in commits, no secrets in logs. Replit's secrets manager holds production values. Local development uses a .env file that is gitignored.
+8.4 Kill Switches
+	•	Global kill switch in PWA settings (drops to Tier B-only mode)
+	•	Per-channel kill switches (disable email send, disable SMS send independently)
+	•	Per-account kill switch for each Gmail account
+	•	Feature flags on every agent capability for surgical rollback
+8.5 Audit Trail
+Every agent action — every SMS sent, every email drafted or sent, every task dispatched, every follow-up triggered, every escalation — is logged with timestamp, recipient, content, and the input that caused it. Logs are retained indefinitely and searchable from the Insights tab.
+8.6 Backups
+Daily automated backups of the production Postgres to S3 (or Replit's backup service). Retained 30 days rolling, plus weekly snapshots retained 90 days. Recovery procedure documented in the Build Environment Setup Guide.
+9. Companion Documents
+This master spec is supplemented by the following documents, each living in the takeovers-cos repo at /docs:
+	•	02 — Database Schema Doc. Full Postgres schema with column definitions, relationships, and indexes.
+	•	03 — Build Environment Setup Guide. Three-environment setup (local / staging / production), git workflow, feature flags, migrations, backups, deployment configuration.
+	•	04–10 — Phase Build Docs. One per build phase. Each covers what to build, how to test, acceptance criteria, and dependencies.
+	•	Diagrams. System architecture diagram, data flow diagram, agent decision tree, deployment diagram.
+10. Open Decisions
+These remain open and should be revisited during build:
+	•	Whether to use Clerk or Auth0 for PWA auth (both work; Clerk is faster to set up)
+	•	Whether to use BullMQ for background jobs or do everything in n8n (likely both — n8n for high-level loops, BullMQ for tight scheduling)
+	•	Whether to integrate the Insights tab with Selmen's calendar to schedule weekly review time automatically
+	•	Whether the agent should have voice output (call back, voicemail) in a future phase
+	•	Whether to expose the agent to Brandon and Richard as a shared tool, or keep it strictly Selmen-only (recommended: Selmen-only for v1)
+This document is the umbrella. Companion documents 02–10 contain the specific schemas, build instructions, and deployment configuration needed to actually build the system. Read this first, then read the companion documents in order.

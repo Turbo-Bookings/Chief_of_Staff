@@ -1,0 +1,434 @@
+TAKEOVERS CHIEF OF STAFF
+Phase 6
+Insights + Learning
+Document 09 of 13
+Estimated build time: 2 weeks
+Outcome: The agent compounds value every week. Patterns become SOPs. The system improves itself.
+
+Phase Goal
+Phases 1-5 give Selmen a Chief of Staff agent that runs the day-to-day. Phase 6 turns that agent into a system that improves itself. Every week, the agent reviews its own behavior and Selmen's behavior, identifies patterns, and proposes refinements. Approved patterns become SOPs that change how the agent operates going forward.
+This is the loop that separates a useful tool from a multiplier. Without Phase 6, the agent's quality is fixed at whatever the prompts and rules in this documentation specify. With Phase 6, the quality compounds — every week the agent gets a little smarter about how Selmen actually wants things done.
+Phase 6 also turns the agent into an operations consultant. Monthly Opus runs look at cross-cutting patterns: bottlenecks, overloaded team members, recurring fires, workflow problems. The output isn't just "the agent does things better" — it's "the business does things better."
+What you can do at the end of Phase 6:
+	•	The Insights tab is functional with weekly reports, monthly strategy reports, SOP candidates, and workflow suggestions
+	•	Approved SOPs change agent behavior immediately — same pattern next time uses the new SOP
+	•	Override patterns are detected and surfaced ("You've shortened my drafts to Nick 4 times — should I default shorter?")
+	•	Team response patterns are tracked ("Orlando is slowest on Sundays — should I avoid Sunday dispatches?")
+	•	Bottleneck analysis surfaces operational problems before they become fires
+	•	The agent can be asked questions about its own behavior ("why did you draft that for Brandon?")
+What is explicitly NOT in this phase:
+	•	No autonomous SOP creation — every SOP requires Selmen's approval
+	•	No predictive forecasting ("this project will fail" type claims)
+	•	No automated team performance reviews — this is operations consulting, not HR
+	•	No external benchmarking against other companies
+
+1. The Five Pattern Categories
+Phase 6 detects five distinct kinds of patterns. Each has its own detection logic, weight, and approval flow.
+1.1 SOP Candidates
+Repeated tasks that follow a similar structure. Example: 'Have someone do a weekly inventory check' has been delegated 4 times to Joan in 4 different ways. The agent proposes an SOP that codifies the pattern so future instances dispatch consistently.
+Detection trigger
+	•	3+ tasks with similar descriptions delegated to the same person within 60 days
+	•	OR 5+ tasks with similar descriptions across the team within 60 days
+Output
+An insight in the Insights tab: "I noticed you've delegated weekly inventory checks 4 times in the last 6 weeks. Want me to create an SOP that handles this automatically going forward?" If approved, an SOP row is created and any future capture matching the SOP's trigger conditions uses the SOP's procedure for dispatch.
+1.2 Style Preferences
+Edits Selmen consistently makes to agent drafts that suggest a style preference.
+Detection trigger
+	•	Selmen has edited the agent's draft for the same recipient 3+ times with similar edits (e.g. always shortening, always removing closing phrases, always adding context)
+	•	OR Selmen has edited a category of draft (e.g. all replies to partners) consistently in a similar direction
+Output
+"You've shortened my drafts to Orlando 5 times — they were averaging 28 words but you cut them to 12. Should I default to terser drafts for Orlando?" If approved, the team_member's communication_style is updated and future drafts to that person reflect the change.
+1.3 Workflow Problems
+Recurring issues in how work flows through the team.
+Detection trigger
+	•	Same blocker reason appears on multiple tasks (e.g. "need approval from Selmen" blocks 3 different team members in a week)
+	•	Same hand-off path is slow consistently (e.g. tasks routed Nick → Selmen for approval take >24h consistently)
+	•	Specific topic generates more clarification questions than average
+Output
+"3 tasks this week were blocked because team members needed your approval to proceed. The pattern: [specifics]. Want me to draft a process where these don't need your approval?" Approved workflow changes can result in SOP changes, authority tier changes, or just informational notes Selmen acts on.
+1.4 Overload Warnings
+Team members trending toward overload — getting too many open tasks, slowing response times, missing deadlines at increasing rates.
+Detection trigger
+	•	Open task count for a team member is >50% above their 90-day rolling average
+	•	OR average response time has degraded >30% over 14 days
+	•	OR escalation rate on tasks for this person has doubled in 14 days
+Output
+"Nick's open task count is 8 (his average is 4). Response time has slowed from 4h to 18h. Want me to reroute next 2 dispatches that could go to someone else?" Selmen approves or dismisses. Approved → next eligible reassignable tasks proposed.
+1.5 Bottlenecks
+Cross-cutting operational issues — multiple tasks waiting on the same person, the same vendor, the same decision.
+Detection trigger
+	•	3+ open tasks across different projects all blocked on the same upstream
+	•	OR multiple team members reporting same external dependency as blocker
+Output
+"4 different threads this week are waiting on Karina. Want me to draft a follow-up that consolidates everything?" Approved → consolidated outbound; reduces the touchpoint count and surfaces all parallel asks.
+
+2. The Weekly Pattern Run
+Once a week (Sunday at 6 PM by default — configurable in principal preferences), a background job runs over the prior week's data.
+2.1 What it analyzes
+	•	All agent_actions_log entries from the past 7 days
+	•	All tasks state transitions
+	•	All agent draft → Selmen edit diffs
+	•	All escalations raised + resolved
+	•	All projects' progression and risk changes
+	•	All inbound team responses and their classifications
+	•	Selmen's own actions in the PWA (approve, reject, edit, dismiss)
+2.2 The weekly run prompt
+This is one of the most carefully constructed prompts in the system. It's run with claude-opus-4-7.
+SYSTEM:
+You are the weekly pattern reviewer for Selmen Hassen's Chief of Staff
+agent. You review the past 7 days of agent activity to identify patterns
+Selmen should know about and approve into long-running rules.
+
+Your goal is to find SIGNAL, not noise. Be conservative. A single
+data point is not a pattern. Three data points pointing the same way
+is a pattern. Use 'I noticed' framing for pattern proposals.
+
+Categories of pattern to find:
+1. SOP candidates — repeated work that should become procedure
+2. Style preferences — drafts edited consistently in similar ways
+3. Workflow problems — bottlenecks in how work flows
+4. Overload warnings — team members trending toward overload
+5. Bottlenecks — cross-cutting external dependencies
+
+DATA:
+Action log: {agent_actions_log_json}
+Override diffs: {edit_diffs_json}
+Task transitions: {task_transitions_json}
+Team response patterns: {team_response_summary_json}
+Existing SOPs: {existing_sops_summary_json}
+
+Return JSON:
+{
+  "insights": [
+    {
+      "insight_type": "sop_candidate" | "style_preference" | "workflow_problem" | "overload_warning" | "bottleneck",
+      "title": "short title",
+      "body": "full description with specifics — name names, cite numbers",
+      "evidence": ["refs to specific actions/tasks/messages"],
+      "confidence": 0-1,
+      "proposed_action": "what you suggest",
+      "reasoning": "why you flagged this"
+    }
+  ],
+  "summary": "2-3 sentence summary of the week",
+  "this_week_observations": "2-3 bullet points of things worth noting that aren't insights but are noticeable"
+}
+2.3 Output processing
+	•	Each insight gets stored in the insights table
+	•	Insights with confidence >= 0.8 surface in Insights tab as 'pending'
+	•	Insights with confidence < 0.8 are stored but not surfaced (avoid noise)
+	•	Summary and observations are added to the upcoming morning brief
+	•	An analysis_runs row tracks cost, run time, output count
+2.4 Cost
+Weekly Opus run is the largest single expense in the agent. Estimated tokens: 50K-150K input, 5K-15K output. Cost: $1-5 per run. Over a year, ~$100-260. Cheap for the value.
+
+3. The Monthly Strategy Run
+Once a month, on the first Monday at 9 AM, a higher-order Opus run looks at cross-week and cross-month patterns. This is operations consulting, not pattern detection.
+3.1 What it analyzes
+	•	All weekly insights from the past 4-5 weeks
+	•	All approved SOPs and their application count
+	•	All projects: completed, active, cancelled
+	•	Team response patterns aggregated over the month
+	•	Trends — what's getting better, what's getting worse
+3.2 The monthly run prompt
+SYSTEM:
+You are the monthly strategist for Selmen Hassen's Chief of Staff agent.
+You review the past 30 days holistically to surface CROSS-CUTTING
+operational issues and OPPORTUNITIES.
+
+This is operations consulting, not pattern detection. Look for:
+  - Trends getting worse (and why)
+  - Capacity issues (who's overworked, who's under-utilized)
+  - Process gaps (where things consistently slip)
+  - Workflow asymmetries (tasks flowing one direction more than necessary)
+  - Strategic suggestions (what would change the operational picture)
+
+Be specific. Name people. Cite numbers. Avoid generalities.
+
+DATA:
+Past 30 days agent action summary: {month_actions_summary_json}
+Weekly insights from the month: {month_insights_json}
+Active SOPs and application counts: {sops_summary_json}
+Team load summary: {team_load_summary_json}
+Project outcomes: {projects_summary_json}
+
+Return JSON:
+{
+  "strategic_observations": [
+    {
+      "area": "team_load" | "process_gap" | "capacity" | "workflow" | "opportunity",
+      "title": "short",
+      "body": "full observation with specifics",
+      "recommendation": "what to do about it",
+      "priority": "high" | "medium" | "low"
+    }
+  ],
+  "month_in_review": "narrative summary, 1-2 paragraphs",
+  "trends_better": ["things improving"],
+  "trends_worse": ["things degrading"],
+  "team_temperature": "per-person 1-line read on each active team member"
+}
+3.3 Where output goes
+	•	Strategic observations land in Insights tab marked as 'monthly'
+	•	Month-in-review is added to the first morning brief of the new month
+	•	Team temperature is shared with Selmen privately (not part of brief — sensitive)
+
+4. SOP Lifecycle
+4.1 Creation
+Three paths to SOP creation:
+	•	Agent-proposed (most common): Weekly run identifies a pattern, surfaces as insight, Selmen approves
+	•	Selmen-authored: Selmen explicitly writes an SOP via the PWA Insights tab → New SOP
+	•	Imported: Selmen describes a procedure to the agent in the Talk tab; the agent transcribes into SOP format
+4.2 SOP structure
+Defined in Document 02 schema. Each SOP has:
+	•	Title — human-readable name
+	•	Category — delegation, follow_up, email_response, scheduling, etc.
+	•	Trigger conditions — JSONB describing when this SOP applies
+	•	Procedure — text body the agent reads when applying
+	•	Applies to team members (specific list, or empty for everyone)
+	•	Origin — agent_proposed, principal_authored, imported
+	•	Status — active, superseded, retired
+	•	Application count — how often used
+4.3 SOP application
+Before any task dispatch or email draft, the agent queries the SOPs table for matches:
+	•	Filter SOPs where status='active'
+	•	Filter SOPs whose applies_to_team_members includes (or is empty for) the relevant person
+	•	Filter SOPs whose trigger_conditions match the current task/email
+	•	If matches found, include the procedure text in the Claude prompt as additional context
+	•	Increment application_count, update last_applied_at
+4.4 SOP versioning
+	•	Editing an SOP increments version
+	•	Old versions are retained (status='superseded') for audit history
+	•	Application history references the specific version that was applied
+4.5 SOP retirement
+	•	Selmen can retire an SOP via the Insights tab
+	•	Retired SOPs are no longer matched in the application pipeline
+	•	Stays in DB for historical reference
+
+5. The Insights Tab — Full Functional UI
+5.1 Tab structure
+	•	Top: filter chips — Pending / Approved / Dismissed / All Insights
+	•	Sub-tabs: Weekly / Monthly / SOPs / Settings
+5.2 Weekly sub-tab
+	•	Latest weekly report at the top — collapsed view with summary + count of insights
+	•	Tap to expand into full week's insights list
+	•	Below: archive of prior weekly reports, paginated
+5.3 Monthly sub-tab
+	•	Latest monthly strategy report at the top
+	•	Sections: Strategic observations, Trends getting better, Trends getting worse, Team temperature
+	•	Below: archive of prior monthly reports
+5.4 SOPs sub-tab
+	•	All active SOPs grouped by category
+	•	Each SOP shows: title, application count, last applied
+	•	Tap to view full procedure, edit, retire, or view application history
+	•	"+ New SOP" button
+5.5 Insight card UI
+	•	Type badge (SOP candidate / Style preference / Workflow / Overload / Bottleneck)
+	•	Title and body
+	•	Confidence percentage (visual bar)
+	•	Evidence section — links to the specific actions, tasks, or messages that support the pattern
+	•	Proposed action — what the agent suggests
+	•	Action buttons: Approve / Dismiss / Snooze (delays surfacing for N days)
+	•	Tap evidence link → opens the source artifact in its native context (task, message, etc.)
+5.6 Settings sub-tab
+	•	Weekly run schedule (default Sunday 6 PM, configurable)
+	•	Monthly run schedule (default first Monday 9 AM, configurable)
+	•	Confidence threshold for auto-surfacing (default 0.8)
+	•	Insight retention (default: pending insights expire after 14 days, dismissed insights retained 90 days, approved indefinitely)
+
+6. Override Capture & Style Learning
+This is the most important continuous learning behavior. Every time Selmen edits or rejects an agent draft, the diff is captured.
+6.1 Override capture in the data layer
+Already specified in Document 02. The agent_actions_log row records:
+	•	principal_overrode boolean
+	•	override_diff text — the actual diff between agent's draft and Selmen's edited version
+6.2 Override aggregation
+Once a week, the weekly pattern run aggregates overrides:
+	•	Group by recipient — "You edited 5 drafts to Brandon this week"
+	•	Group by edit type — adding context, shortening, changing tone, removing closing phrase, etc.
+	•	Identify systematic edits — same edit applied to 3+ drafts is a pattern
+6.3 Style update flow
+	•	Insight surfaces: "You shortened drafts to Orlando 5 times — average 28 words → 12 words"
+	•	Selmen approves
+	•	Update team_members.communication_style preference (or add a new style sub-attribute if needed)
+	•	Add an SOP if appropriate: "For Orlando, terse drafts only — avg 12 words target"
+	•	Future drafts incorporate the change
+6.4 Avoiding overcorrection
+	•	Confidence threshold of 0.8 for style insights — must be a strong pattern
+	•	Selmen always approves before changes apply
+	•	If applied changes degrade quality (override rate goes UP after change), the agent flags the regression in the next weekly review
+
+7. Tech Decisions for This Phase
+Claude usage
+	•	Weekly run: claude-opus-4-7. Reasoning over a week of data is the right Opus use case.
+	•	Monthly run: claude-opus-4-7. Higher-order strategic synthesis. Larger input window.
+	•	SOP application matching: claude-sonnet-4-6. Routine matching during dispatch.
+	•	Total Phase 6 cost: ~$10-25/month for weekly + monthly runs combined.
+Data preparation for runs
+The weekly and monthly runs need to fit within Claude's context window. Strategy:
+	•	Aggregate raw logs into structured summaries (e.g. "15 tasks dispatched this week, 12 completed, 3 escalated")
+	•	Include verbatim only the highest-signal items: edit diffs, escalations, blocker reasons
+	•	Limit total prompt size to ~150K tokens for weekly, ~500K for monthly (still within Opus context window)
+Insight storage and aging
+	•	All insights stored permanently
+	•	Pending insights with no action after 14 days auto-snooze for 30 days
+	•	Snoozed insights re-surface when their snooze_until passes
+	•	Dismissed insights stay in DB but don't surface
+
+8. API Endpoints to Build
+8.1 Insight endpoints
+GET    /api/insights                       // List with filters
+GET    /api/insights/:id                   // Full insight detail
+POST   /api/insights/:id/approve           // Approve and apply
+POST   /api/insights/:id/dismiss           // Dismiss with optional reason
+POST   /api/insights/:id/snooze            // Snooze N days
+GET    /api/insights/weekly/latest         // Latest weekly report
+GET    /api/insights/monthly/latest        // Latest monthly report
+GET    /api/insights/runs                  // Analysis run history
+8.2 SOP endpoints
+GET    /api/sops                           // List with filters
+POST   /api/sops                           // Create new (manual)
+GET    /api/sops/:id                       // Full detail
+PATCH  /api/sops/:id                       // Edit (creates new version)
+POST   /api/sops/:id/retire                // Retire
+GET    /api/sops/:id/applications          // History of when this SOP was applied
+8.3 Manual triggers
+POST   /api/insights/run-weekly             // Force a weekly run now
+POST   /api/insights/run-monthly            // Force a monthly run now
+POST   /api/insights/ad-hoc                 // Run an ad-hoc analysis on a date range or topic
+
+9. Background Jobs
+9.1 Weekly pattern run
+	•	Schedule: Sunday 6 PM local (configurable)
+	•	Inputs: Past 7 days of agent_actions_log + override diffs + task transitions + escalations
+	•	Output: insights table rows + analysis_runs row + summary added to upcoming morning brief
+9.2 Monthly strategy run
+	•	Schedule: First Monday 9 AM local (configurable)
+	•	Inputs: Past 30 days of weekly insights + project outcomes + team load + sop applications
+	•	Output: monthly strategic insights + month-in-review narrative + team temperature read
+9.3 Insight aging worker
+Daily job that ages pending insights, transitions snoozed → pending when due, marks expired.
+
+10. Acceptance Criteria
+#
+Acceptance criterion
+How to verify
+1
+Weekly pattern run executes successfully on schedule
+Wait for Sunday 6 PM. Verify analysis_runs row created with status='complete'.
+2
+Weekly run produces insights with valid structure
+Verify each insight has type, title, body, evidence, confidence, proposed_action.
+3
+High-confidence insights surface in Insights tab
+Trigger weekly run with rich data. Verify insights >0.8 confidence appear.
+4
+Low-confidence insights are stored but not surfaced
+Verify <0.8 insights exist in DB but don't appear in pending list.
+5
+Insight evidence links open source artifacts correctly
+Tap evidence link, verify it opens the referenced task or message.
+6
+Approving SOP candidate creates active SOP
+Approve a sop_candidate insight. Verify sops row created with status='active'.
+7
+Approved SOP is applied on next matching task
+Approve SOP. Send a matching capture. Verify SOP procedure included in Claude prompt and application_count incremented.
+8
+Dismissing an insight removes it from pending list
+Dismiss insight. Verify status='dismissed' and not in pending UI.
+9
+Snoozing pushes insight to later date
+Snooze 7 days. Verify snooze_until set and insight not in pending until that date.
+10
+Style preference insight updates team_member when approved
+Approve a style insight. Verify team_member's communication_style or context_notes updated.
+11
+Override diffs are captured in agent_actions_log
+Edit a draft in Approvals. Verify override_diff captured.
+12
+Monthly run executes successfully on schedule
+Wait for first Monday 9 AM. Verify monthly run completes.
+13
+Monthly report includes trends, observations, team temperature
+Inspect output. Verify all sections populated.
+14
+Manual trigger of weekly run works for ad-hoc analysis
+Call POST /api/insights/run-weekly. Verify run executes.
+15
+SOP versioning preserves history on edit
+Edit an active SOP. Verify old version superseded, new version v2 active.
+16
+Retired SOPs are not applied
+Retire SOP. Send matching capture. Verify SOP not used.
+17
+Insights tab UI renders all sub-tabs correctly
+Navigate Weekly/Monthly/SOPs/Settings, verify each loads.
+18
+Confidence threshold setting changes auto-surface behavior
+Set threshold to 0.9. Run weekly with mixed confidences. Verify only >0.9 surfaces.
+19
+Workflow problem detection identifies common blockers
+Seed several tasks blocked on same reason. Run weekly. Verify workflow_problem insight.
+20
+Overload warning fires when team member's open count is elevated
+Seed Test-Nick with 8 open tasks (vs avg 4). Run weekly. Verify overload insight.
+
+11. Testing Plan
+11.1 Unit tests
+	•	Trigger conditions for each insight category
+	•	SOP application matching logic
+	•	Confidence threshold filtering
+	•	Insight aging state machine (pending → snoozed → pending; pending → expired)
+	•	SOP version increment on edit
+11.2 Integration tests
+	•	Full weekly run with seeded fixtures producing expected insights
+	•	Approve flow → SOP creation → next matching capture uses SOP
+	•	Edit drafts → override capture → next weekly run identifies pattern
+	•	Retire SOP → no longer applied
+11.3 Behavior tests
+	•	Run agent for 2 weeks with realistic shadow-team activity in staging
+	•	Verify weekly insights identify at least 3 real patterns
+	•	Approve one or two; verify the agent's behavior changes accordingly
+	•	Continue activity for another week
+	•	Verify the second weekly run reflects the changed behavior (override rates should drop on the categories where SOPs/style changes were applied)
+11.4 Adversarial tests
+	•	Run weekly with 0 actions (slow week) — verify graceful empty output
+	•	Run with 1000 actions (busy week) — verify within token budget
+	•	SOP with circular trigger condition — verify rejected at create time
+	•	Insight that contradicts another approved SOP — verify the conflict is flagged
+
+12. Dependencies & Prerequisites
+Before starting Phase 6
+	•	Phases 1-5 complete and stable in production
+	•	agent_actions_log has at least 4 weeks of production data accumulated (otherwise weekly insights are sparse)
+	•	Override diffs are being captured correctly (verify in Phase 2 first)
+	•	Claude Opus API access is configured and quota is sufficient
+Schema additions
+Document 02 already has insights, sops, and analysis_runs tables. The schema is ready.
+
+13. Risks & Mitigations
+Risk: Weekly insights are noisy or low-quality
+Mitigation: Confidence threshold default 0.8 — only surface what the model is sure about. Low-confidence insights stored for review but not pushed. If the first few weekly runs produce noise, the prompt is iterated by Selmen until quality is high.
+Risk: Approved SOP backfires (degrades quality)
+Mitigation: SOPs are versioned and reversible. Selmen can retire or edit any SOP. The agent monitors override rate per-SOP — if applying an SOP correlates with elevated override rate, that's flagged in the next weekly run as a regression.
+Risk: Selmen approves insights without reading them carefully
+Mitigation: Insight cards show evidence inline, not buried. Approve button isn't pre-selected — requires deliberate tap. Approved insights are auditable in agent_actions_log so any bad approval can be traced and reverted.
+Risk: Privacy / sensitivity of monthly team temperature read
+Mitigation: Team temperature reads are private to Selmen — never included in shareable briefs or exports. The data is observational (response times, task counts) not interpretive. The agent does not generate "performance reviews" — just patterns Selmen can act on humanly.
+Risk: Cost runs hot (weekly + monthly Opus is expensive)
+Mitigation: Total Phase 6 cost projection is $25/month — not concerning. If it grows (busier weeks, more data), set a cost ceiling and degrade to Sonnet for weekly runs if needed. Monthly run is high-value enough to justify Opus.
+Risk: Pattern detection over-fits to short-term noise
+Mitigation: 7-day windows are short. Some "patterns" will be coincidence. The 0.8 confidence threshold helps, but Selmen's approve/dismiss/snooze actions also feed back — if Selmen consistently dismisses a class of insight, the agent should learn to surface them less.
+
+14. Phase 6 Sign-Off Checklist
+	•	All acceptance criteria in Section 10 verified in staging
+	•	All Section 11 tests passed including 2-week behavior test
+	•	First weekly run on real production data produced ≥1 useful insight
+	•	First monthly run on real production data produced a substantive strategy report
+	•	Selmen has approved at least one SOP and verified the agent's behavior changed accordingly
+	•	Override rate is being tracked and visible (key metric for ongoing health)
+	•	Insights tab is the most-frequented tab during the first month of Phase 6 — that's the goal
+	•	Documentation in /docs is up to date
+Phase 6 is what turns the agent from a useful tool into a multiplier. Every week, the system gets smarter about how Selmen actually wants things done. Every month, it surfaces operational issues before they become fires. The compounding starts here.
+Remaining: Phase 7 adds file access (Google Drive) and GitHub repository reading for tech-context grounding. After that, the architectural diagrams round out the documentation set.
