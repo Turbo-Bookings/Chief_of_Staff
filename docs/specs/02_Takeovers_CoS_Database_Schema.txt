@@ -1,0 +1,1227 @@
+TAKEOVERS CHIEF OF STAFF
+Database Schema
+Document 02 of 13
+Companion to Master Architecture Spec
+Postgres + Drizzle ORM
+Version 1.0  •  April 2026
+
+Overview
+This document defines the complete database schema for the takeovers-cos agent. Every table, column, type, constraint, index, and relationship is specified here. The schema is implemented in Postgres using Drizzle ORM for type-safe queries and migration management.
+The schema is organized into seven logical groups:
+	•	1. Core Identity — team members and the principal (Selmen) himself
+	•	2. Communication — conversation threads, messages, the continuous Talk thread
+	•	3. Tasks & Projects — the work the agent dispatches and tracks
+	•	4. Follow-up — the chase scheduler that prevents drops
+	•	5. Email — the three Gmail accounts and their messages
+	•	6. Learning — logs, SOPs, insights, patterns the agent has identified
+	•	7. System — feature flags, audit trail, configuration
+Every table includes created_at and updated_at timestamps managed by Drizzle. Every primary key is a UUID v4 unless noted. Soft deletes (deleted_at) are used for anything a human has touched — hard deletes only for system-internal tables.
+
+Group 1 — Core Identity
+1.1 team_members
+Every person Selmen coordinates with — initial team plus anyone he adds later via the Team tab in the PWA.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+Primary key
+full_name
+varchar(120)
+NOT NULL
+Full display name (e.g. Oscar Rivera)
+short_name
+varchar(40)
+NOT NULL
+First name or nickname for casual references
+role_summary
+text
+NOT NULL
+One-paragraph description of what this person does
+responsibilities
+jsonb
+DEFAULT '[]'
+Array of responsibility tags for routing logic
+phone
+varchar(20)
+
+E.164 format (+13055551234)
+email
+varchar(120)
+
+Primary email address
+preferred_channel
+channel_enum
+DEFAULT 'sms'
+sms | email | both
+communication_style
+style_enum
+DEFAULT 'terse'
+detailed | terse — drives draft length and context
+timezone
+varchar(40)
+DEFAULT 'America/New_York'
+For scheduling and follow-up timing
+working_hours
+jsonb
+
+{ start: '08:00', end: '20:00', days: [1,2,3,4,5] }
+location
+varchar(60)
+
+miami | dallas | houston | remote | etc
+context_notes
+text
+
+Free-form context the agent should know about this person
+partner_status
+boolean
+DEFAULT false
+True for Brandon, Richard — Tier B by default
+external_status
+boolean
+DEFAULT false
+True for Karina (realtor), legal counsel — Tier B by default
+active
+boolean
+DEFAULT true
+False to deactivate without deleting
+created_at
+timestamp
+DEFAULT now()
+
+updated_at
+timestamp
+DEFAULT now()
+
+deleted_at
+timestamp
+
+Soft delete
+Indexes
+CREATE INDEX idx_team_active ON team_members(active) WHERE active = true;
+CREATE INDEX idx_team_phone ON team_members(phone);
+CREATE INDEX idx_team_email ON team_members(email);
+Initial seed data
+Seed at deployment time with Oscar, Nick, Josh, Orlando, Joan, Kathy, Karina, Tahir, Richard, Brandon — using the role descriptions Selmen provided in the planning conversation.
+1.2 principal
+Single-row table containing Selmen's profile and preferences. The agent reads this on every interaction.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+Always one row — singleton enforced by check constraint
+full_name
+varchar(120)
+NOT NULL
+Selmen Hassen
+primary_phone
+varchar(20)
+NOT NULL
+Phone the agent texts for escalations
+primary_email
+varchar(120)
+NOT NULL
+sel@takeoversrentals.com
+briefing_morning_time
+time
+DEFAULT '07:00'
+Local time for morning brief
+briefing_evening_time
+time
+DEFAULT '18:00'
+Local time for evening brief
+timezone
+varchar(40)
+DEFAULT 'America/New_York'
+
+preferences
+jsonb
+DEFAULT '{}'
+Agent-learned preferences over time
+kill_switch
+boolean
+DEFAULT false
+Global kill switch — drops everything to Tier B
+created_at
+timestamp
+DEFAULT now()
+
+updated_at
+timestamp
+DEFAULT now()
+
+
+Group 2 — Communication
+2.1 threads
+Conversation threads. The most important thread is Selmen's continuous Talk thread (one per principal). Every team member also has their own thread for messages between agent and them.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+thread_type
+thread_enum
+NOT NULL
+principal_talk | team_member | system_internal
+counterparty_id
+uuid
+FK team_members(id)
+Null for principal_talk thread
+channel
+channel_enum
+NOT NULL
+sms | email | pwa
+external_id
+varchar(200)
+
+Twilio conversation SID, Gmail thread ID, etc.
+status
+thread_status
+DEFAULT 'active'
+active | archived
+last_message_at
+timestamp
+
+For sort and stale detection
+created_at
+timestamp
+DEFAULT now()
+
+updated_at
+timestamp
+DEFAULT now()
+
+Indexes
+CREATE UNIQUE INDEX idx_threads_principal ON threads(thread_type)
+  WHERE thread_type = 'principal_talk';
+CREATE INDEX idx_threads_counterparty ON threads(counterparty_id);
+CREATE INDEX idx_threads_last_message ON threads(last_message_at DESC);
+2.2 messages
+Every individual message in every thread — inbound from Selmen, outbound from agent, inbound from team, outbound to team. The full history.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+thread_id
+uuid
+FK threads(id), NOT NULL
+
+direction
+direction_enum
+NOT NULL
+inbound | outbound
+sender_type
+sender_enum
+NOT NULL
+principal | agent | team_member | external
+sender_id
+uuid
+
+team_members.id when applicable
+content_type
+content_enum
+NOT NULL
+text | voice | image | file | system
+content_text
+text
+
+Transcribed text for voice; full text for text/email
+content_url
+varchar(500)
+
+Storage URL for voice memos, images, attachments
+transcription_confidence
+decimal(4,3)
+
+Whisper confidence score, 0-1
+claude_parse
+jsonb
+
+Structured output from Claude — intent, entities, etc.
+external_id
+varchar(200)
+
+Twilio message SID, Gmail message ID, etc.
+delivered_at
+timestamp
+
+
+read_at
+timestamp
+
+
+created_at
+timestamp
+DEFAULT now()
+
+Indexes
+CREATE INDEX idx_messages_thread_created ON messages(thread_id, created_at DESC);
+CREATE INDEX idx_messages_external ON messages(external_id);
+CREATE INDEX idx_messages_sender ON messages(sender_type, sender_id);
+
+Group 3 — Tasks & Projects
+3.1 tasks
+The core unit of delegation. Every task captured by the agent — whether dispatched to a team member or kept on Selmen's own list — is a row in this table.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+title
+varchar(200)
+NOT NULL
+Short summary
+description
+text
+
+Full task brief
+owner_id
+uuid
+FK team_members(id)
+Null = owned by Selmen
+origin_message_id
+uuid
+FK messages(id)
+The message that birthed this task
+status
+task_status
+DEFAULT 'captured'
+captured | dispatched | acknowledged | in_progress | blocked | complete | cancelled
+priority
+priority_enum
+DEFAULT 'normal'
+urgent | high | normal | low
+due_at
+timestamp
+
+Hard deadline, null if soft
+proposed_due_at
+timestamp
+
+Agent's proposed deadline
+dispatch_channel
+channel_enum
+
+How the task was sent
+dispatched_at
+timestamp
+
+
+dispatched_by
+dispatcher_enum
+
+agent | principal
+acknowledged_at
+timestamp
+
+Owner has confirmed receipt
+completed_at
+timestamp
+
+
+completion_evidence
+text
+
+How completion was verified
+blocked_reason
+text
+
+Why the task is blocked
+project_id
+uuid
+FK projects(id)
+Optional parent project
+depends_on
+jsonb
+DEFAULT '[]'
+Array of task IDs this task depends on
+tags
+jsonb
+DEFAULT '[]'
+Free-form tags for filtering
+authority_tier
+tier_enum
+DEFAULT 'A'
+A | B | C — drives whether agent dispatched autonomously
+created_at
+timestamp
+DEFAULT now()
+
+updated_at
+timestamp
+DEFAULT now()
+
+deleted_at
+timestamp
+
+Soft delete
+Indexes
+CREATE INDEX idx_tasks_owner_status ON tasks(owner_id, status)
+  WHERE deleted_at IS NULL;
+CREATE INDEX idx_tasks_due ON tasks(due_at)
+  WHERE status NOT IN ('complete', 'cancelled') AND deleted_at IS NULL;
+CREATE INDEX idx_tasks_project ON tasks(project_id);
+CREATE INDEX idx_tasks_status_priority ON tasks(status, priority);
+3.2 projects
+Multi-step initiatives. The Fareharbor migration would have been one. Dallas grand opening would be one. Each project has milestones (which are tasks linked back via project_id).
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+name
+varchar(200)
+NOT NULL
+Project name
+description
+text
+
+What this project is and why it matters
+status
+project_status
+DEFAULT 'active'
+planning | active | paused | complete | cancelled
+target_completion
+date
+
+When this project should be done
+lead_id
+uuid
+FK team_members(id)
+Project lead, if delegated
+risk_level
+risk_enum
+DEFAULT 'normal'
+low | normal | elevated | critical
+risk_notes
+text
+
+Why risk is elevated
+milestones
+jsonb
+DEFAULT '[]'
+Lightweight milestone snapshot for quick UI render
+created_by
+creator_enum
+DEFAULT 'principal'
+principal | agent_detected
+created_at
+timestamp
+DEFAULT now()
+
+updated_at
+timestamp
+DEFAULT now()
+
+deleted_at
+timestamp
+
+
+Indexes
+CREATE INDEX idx_projects_status ON projects(status) WHERE deleted_at IS NULL;
+CREATE INDEX idx_projects_target ON projects(target_completion);
+
+Group 4 — Follow-up
+4.1 followups
+The chase scheduler. Every time a task is dispatched, one or more follow-up rows are created. A background job processes due follow-ups, sends nudges, and either reschedules or escalates based on response.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+task_id
+uuid
+FK tasks(id), NOT NULL
+
+scheduled_for
+timestamp
+NOT NULL
+When this nudge fires
+nudge_level
+smallint
+NOT NULL
+1 = soft, 2 = firm, 3 = escalation to Selmen
+status
+followup_status
+DEFAULT 'pending'
+pending | sent | satisfied | cancelled | escalated
+sent_at
+timestamp
+
+
+satisfied_at
+timestamp
+
+Owner acknowledged or task moved forward
+nudge_message
+text
+
+What was actually sent
+channel
+channel_enum
+
+sms | email
+created_at
+timestamp
+DEFAULT now()
+
+Indexes
+CREATE INDEX idx_followups_due ON followups(scheduled_for)
+  WHERE status = 'pending';
+CREATE INDEX idx_followups_task ON followups(task_id);
+Default cadence per priority
+// Standard internal task:
+//   Nudge 1 (soft):       +24h after dispatch
+//   Nudge 2 (firm):       +48h after dispatch
+//   Nudge 3 (escalate):   +72h after dispatch
+//
+// High-priority task:
+//   Nudge 1 (soft):       +12h
+//   Nudge 2 (firm):       +24h
+//   Nudge 3 (escalate):   +36h
+//
+// Urgent task:
+//   Nudge 1 (firm):       +4h
+//   Nudge 2 (escalate):   +8h
+4.2 escalations
+When a follow-up reaches level 3 without resolution, an escalation is created and surfaced to Selmen via SMS push and the Today tab.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+task_id
+uuid
+FK tasks(id), NOT NULL
+
+followup_id
+uuid
+FK followups(id)
+
+reason
+text
+NOT NULL
+Why this is being escalated
+recommended_action
+text
+
+Agent's suggestion (e.g. call Orlando)
+status
+esc_status
+DEFAULT 'open'
+open | resolved | dismissed
+resolved_at
+timestamp
+
+
+resolution_notes
+text
+
+
+created_at
+timestamp
+DEFAULT now()
+
+
+Group 5 — Email
+5.1 email_accounts
+Configuration for each of the three Gmail accounts. OAuth tokens encrypted at rest.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+account_email
+varchar(120)
+UNIQUE NOT NULL
+sel@takeoversrentals.com etc.
+account_role
+email_role
+NOT NULL
+main_business | account_hub | personal
+display_name
+varchar(100)
+NOT NULL
+How it appears in PWA Inbox tab
+oauth_access_token
+text
+
+Encrypted
+oauth_refresh_token
+text
+
+Encrypted
+oauth_expires_at
+timestamp
+
+
+last_sync_at
+timestamp
+
+Last incremental sync timestamp
+last_history_id
+varchar(40)
+
+Gmail historyId for incremental fetch
+authority_tier_default
+tier_enum
+NOT NULL
+A for main_business, A for account_hub, B for personal
+auto_archive_rules
+jsonb
+DEFAULT '[]'
+Patterns to auto-archive
+enabled
+boolean
+DEFAULT true
+
+created_at
+timestamp
+DEFAULT now()
+
+updated_at
+timestamp
+DEFAULT now()
+
+5.2 emails
+Every email the agent has seen, drafted, or sent across all three accounts. Lightweight metadata — full bodies live in Gmail itself, fetched on demand for context.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+account_id
+uuid
+FK email_accounts(id)
+
+gmail_message_id
+varchar(40)
+NOT NULL
+Gmail's message ID
+gmail_thread_id
+varchar(40)
+NOT NULL
+Gmail's thread ID
+direction
+direction_enum
+NOT NULL
+inbound | outbound
+from_address
+varchar(200)
+
+
+to_addresses
+jsonb
+DEFAULT '[]'
+Array of recipients
+cc_addresses
+jsonb
+DEFAULT '[]'
+
+subject
+varchar(500)
+
+
+snippet
+varchar(500)
+
+Gmail snippet for quick UI render
+body_cached
+text
+
+Cached body — refreshed on demand, not always present
+agent_classification
+varchar(40)
+
+newsletter | receipt | team | partner | external | personal | spam
+agent_action
+email_action
+DEFAULT 'pending'
+auto_handled | drafted | sent | archived | flagged | pending
+draft_id
+uuid
+FK email_drafts(id)
+
+importance_score
+smallint
+
+0-100, agent's read on importance
+received_at
+timestamp
+
+
+sent_at
+timestamp
+
+
+created_at
+timestamp
+DEFAULT now()
+
+Indexes
+CREATE UNIQUE INDEX idx_emails_gmail ON emails(account_id, gmail_message_id);
+CREATE INDEX idx_emails_thread ON emails(gmail_thread_id);
+CREATE INDEX idx_emails_action ON emails(agent_action);
+CREATE INDEX idx_emails_received ON emails(received_at DESC);
+5.3 email_drafts
+Drafts the agent has prepared. Tier B drafts wait in the Approvals tab; Tier A drafts get auto-sent then logged.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+account_id
+uuid
+FK email_accounts(id), NOT NULL
+
+reply_to_email_id
+uuid
+FK emails(id)
+Null for new threads
+to_addresses
+jsonb
+NOT NULL
+
+cc_addresses
+jsonb
+DEFAULT '[]'
+
+bcc_addresses
+jsonb
+DEFAULT '[]'
+
+subject
+varchar(500)
+
+
+body
+text
+NOT NULL
+
+authority_tier
+tier_enum
+NOT NULL
+A or B
+status
+draft_status
+DEFAULT 'pending_review'
+pending_review | approved | sent | rejected | expired
+confidence_score
+decimal(4,3)
+
+Agent's confidence — drives Tier A vs B routing
+reasoning
+text
+
+Why the agent drafted this — surfaced in Approvals
+approved_by
+varchar(40)
+
+principal | agent_auto
+approved_at
+timestamp
+
+
+sent_at
+timestamp
+
+
+gmail_message_id
+varchar(40)
+
+After send
+expires_at
+timestamp
+
+Drafts go stale after 7 days
+created_at
+timestamp
+DEFAULT now()
+
+
+Group 6 — Learning
+6.1 agent_actions_log
+Every meaningful action the agent takes. This is the raw fuel for the learning loop. Logs are retained indefinitely.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+action_type
+varchar(60)
+NOT NULL
+task_dispatched | followup_sent | email_drafted | email_sent | escalation_raised | brief_generated | etc.
+actor
+varchar(20)
+NOT NULL
+agent | principal
+entity_type
+varchar(40)
+
+task | email | thread | project | etc.
+entity_id
+uuid
+
+
+input_summary
+text
+
+What triggered the action
+output_summary
+text
+
+What the action did
+claude_model
+varchar(40)
+
+sonnet-4-6 | opus-4-7 | etc.
+claude_input_tokens
+integer
+
+
+claude_output_tokens
+integer
+
+
+latency_ms
+integer
+
+
+success
+boolean
+
+
+error_detail
+text
+
+
+principal_overrode
+boolean
+DEFAULT false
+Did Selmen edit/reject this output?
+override_diff
+text
+
+What Selmen changed — gold for learning
+created_at
+timestamp
+DEFAULT now()
+
+Indexes
+CREATE INDEX idx_actions_type_time ON agent_actions_log(action_type, created_at DESC);
+CREATE INDEX idx_actions_entity ON agent_actions_log(entity_type, entity_id);
+CREATE INDEX idx_actions_overrides ON agent_actions_log(principal_overrode)
+  WHERE principal_overrode = true;
+6.2 sops
+Standard Operating Procedures. Generated by the agent from observed patterns and approved by Selmen, or written by Selmen directly. The agent reads relevant SOPs before any related action.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+title
+varchar(200)
+NOT NULL
+Human-readable name
+category
+varchar(60)
+
+delegation | follow_up | email_response | scheduling | etc.
+trigger_conditions
+jsonb
+NOT NULL
+When this SOP applies — conditions agent matches against
+procedure
+text
+NOT NULL
+The actual SOP body the agent reads
+applies_to_team_members
+jsonb
+DEFAULT '[]'
+Specific people this applies to, empty = everyone
+origin
+sop_origin
+NOT NULL
+agent_proposed | principal_authored | imported
+origin_pattern_id
+uuid
+FK insights(id)
+If agent-proposed, the pattern that proposed it
+status
+sop_status
+DEFAULT 'active'
+active | superseded | retired
+version
+integer
+DEFAULT 1
+Incremented on edit
+last_applied_at
+timestamp
+
+Most recent time agent used this SOP
+application_count
+integer
+DEFAULT 0
+How many times agent has applied it
+created_at
+timestamp
+DEFAULT now()
+
+updated_at
+timestamp
+DEFAULT now()
+
+6.3 insights
+Patterns the agent has detected during weekly and monthly Opus runs. Surface in the Insights tab for Selmen to approve, dismiss, or snooze.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+insight_type
+insight_enum
+NOT NULL
+sop_candidate | style_preference | workflow_problem | overload_warning | bottleneck | etc.
+title
+varchar(200)
+NOT NULL
+
+body
+text
+NOT NULL
+Full description
+evidence
+jsonb
+DEFAULT '[]'
+Refs to actions/tasks/emails that support the pattern
+confidence
+decimal(4,3)
+
+Agent's confidence 0-1
+proposed_action
+text
+
+What the agent suggests doing
+status
+insight_status
+DEFAULT 'pending'
+pending | approved | dismissed | snoozed
+snooze_until
+timestamp
+
+
+actioned_at
+timestamp
+
+
+resulting_sop_id
+uuid
+FK sops(id)
+
+analysis_run_id
+uuid
+FK analysis_runs(id)
+
+created_at
+timestamp
+DEFAULT now()
+
+6.4 analysis_runs
+Each weekly/monthly Opus pattern-detection run. Tracks cost, scope, and outputs.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+run_type
+varchar(40)
+NOT NULL
+weekly_review | monthly_strategy | adhoc
+window_start
+timestamp
+NOT NULL
+
+window_end
+timestamp
+NOT NULL
+
+model
+varchar(40)
+NOT NULL
+opus-4-7 typical
+input_tokens
+integer
+
+
+output_tokens
+integer
+
+
+cost_usd
+decimal(8,4)
+
+
+insights_generated
+integer
+DEFAULT 0
+
+status
+run_status
+DEFAULT 'running'
+running | complete | failed
+error_detail
+text
+
+
+created_at
+timestamp
+DEFAULT now()
+
+completed_at
+timestamp
+
+
+
+Group 7 — System
+7.1 feature_flags
+Per-environment feature flags for surgical rollback and progressive rollout. Read on every relevant agent action.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+flag_key
+varchar(80)
+UNIQUE NOT NULL
+auto_dispatch | auto_followup | auto_email_reply | etc.
+enabled
+boolean
+DEFAULT false
+Master toggle
+description
+text
+
+What this flag controls
+scope
+jsonb
+DEFAULT '{}'
+Optional scoping (e.g. specific team members)
+created_at
+timestamp
+DEFAULT now()
+
+updated_at
+timestamp
+DEFAULT now()
+
+Initial flags to seed
+auto_dispatch_internal_team    -- Tier A SMS/email to team
+auto_followup_nudge_1          -- 24h soft nudge
+auto_followup_nudge_2          -- 48h firm nudge
+auto_email_archive             -- Newsletter/receipt auto-archive
+auto_email_reply_internal      -- Auto-reply to internal pings
+auto_email_reply_personal      -- Personal account auto-reply (DEFAULT OFF)
+weekly_insights_run            -- Run Opus weekly analysis
+monthly_strategy_run           -- Run Opus monthly cross-pattern
+github_repo_read               -- Pull repo context on tech tasks
+drive_file_access              -- Phase 7
+7.2 schedules
+Generic recurring-job table. Daily briefs, weekly check-ins, weekly insights, monthly strategy, etc. all live here.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+job_key
+varchar(80)
+UNIQUE NOT NULL
+morning_brief | evening_brief | weekly_team_checkin | weekly_insights | etc.
+cron_expression
+varchar(60)
+NOT NULL
+Standard cron syntax
+timezone
+varchar(40)
+DEFAULT 'America/New_York'
+
+enabled
+boolean
+DEFAULT true
+
+last_run_at
+timestamp
+
+
+last_run_status
+varchar(20)
+
+
+next_run_at
+timestamp
+
+
+created_at
+timestamp
+DEFAULT now()
+
+updated_at
+timestamp
+DEFAULT now()
+
+7.3 audit_trail
+Security-relevant events. Logins, OAuth refreshes, config changes, kill-switch toggles.
+Column
+Type
+Constraints
+Description
+id
+uuid
+PK
+
+event_type
+varchar(60)
+NOT NULL
+login | oauth_refresh | flag_toggled | kill_switch | config_change
+actor
+varchar(40)
+NOT NULL
+principal | system | agent
+ip_address
+varchar(45)
+
+
+user_agent
+varchar(200)
+
+
+details
+jsonb
+DEFAULT '{}'
+
+created_at
+timestamp
+DEFAULT now()
+
+
+Postgres Enums
+All enum types used across the schema, defined once at the top of migrations:
+CREATE TYPE channel_enum AS ENUM ('sms', 'email', 'pwa', 'both');
+CREATE TYPE style_enum AS ENUM ('detailed', 'terse');
+CREATE TYPE thread_enum AS ENUM ('principal_talk', 'team_member', 'system_internal');
+CREATE TYPE thread_status AS ENUM ('active', 'archived');
+CREATE TYPE direction_enum AS ENUM ('inbound', 'outbound');
+CREATE TYPE sender_enum AS ENUM ('principal', 'agent', 'team_member', 'external');
+CREATE TYPE content_enum AS ENUM ('text', 'voice', 'image', 'file', 'system');
+CREATE TYPE task_status AS ENUM (
+  'captured', 'dispatched', 'acknowledged', 'in_progress',
+  'blocked', 'complete', 'cancelled'
+);
+CREATE TYPE priority_enum AS ENUM ('urgent', 'high', 'normal', 'low');
+CREATE TYPE dispatcher_enum AS ENUM ('agent', 'principal');
+CREATE TYPE tier_enum AS ENUM ('A', 'B', 'C');
+CREATE TYPE project_status AS ENUM (
+  'planning', 'active', 'paused', 'complete', 'cancelled'
+);
+CREATE TYPE risk_enum AS ENUM ('low', 'normal', 'elevated', 'critical');
+CREATE TYPE creator_enum AS ENUM ('principal', 'agent_detected');
+CREATE TYPE followup_status AS ENUM (
+  'pending', 'sent', 'satisfied', 'cancelled', 'escalated'
+);
+CREATE TYPE esc_status AS ENUM ('open', 'resolved', 'dismissed');
+CREATE TYPE email_role AS ENUM ('main_business', 'account_hub', 'personal');
+CREATE TYPE email_action AS ENUM (
+  'auto_handled', 'drafted', 'sent', 'archived', 'flagged', 'pending'
+);
+CREATE TYPE draft_status AS ENUM (
+  'pending_review', 'approved', 'sent', 'rejected', 'expired'
+);
+CREATE TYPE sop_origin AS ENUM (
+  'agent_proposed', 'principal_authored', 'imported'
+);
+CREATE TYPE sop_status AS ENUM ('active', 'superseded', 'retired');
+CREATE TYPE insight_enum AS ENUM (
+  'sop_candidate', 'style_preference', 'workflow_problem',
+  'overload_warning', 'bottleneck', 'capability_gap', 'response_pattern'
+);
+CREATE TYPE insight_status AS ENUM (
+  'pending', 'approved', 'dismissed', 'snoozed'
+);
+CREATE TYPE run_status AS ENUM ('running', 'complete', 'failed');
+
+Key Relationships
+The schema is heavily interconnected. The most important relationships:
+	•	messages → threads (every message belongs to a thread)
+	•	threads → team_members (every team thread is with one person)
+	•	tasks → team_members (owner) and tasks → messages (origin) (tasks know who owns them and what conversation birthed them)
+	•	tasks → projects (many-to-one — projects contain tasks as milestones)
+	•	followups → tasks (many-to-one — multiple nudges per task)
+	•	escalations → tasks + followups (an escalation traces back to the chase that triggered it)
+	•	emails → email_accounts (every email belongs to one of three accounts)
+	•	email_drafts → emails (reply_to) (drafts can reply to a specific email or start a new thread)
+	•	insights → analysis_runs (every insight came from a specific Opus run)
+	•	sops ← insights (approved insights become SOPs)
+	•	agent_actions_log (loosely references everything via entity_type + entity_id, on purpose — log is the cross-cutting record)
+Design Notes
+Why UUIDs everywhere
+UUID primary keys allow the agent to generate IDs client-side before insert, which simplifies the message-creation flow (PWA generates the ID, sends to server, server stores). Also makes it safe to merge databases later if we ever spin up a separate environment.
+Why JSONB instead of joined tables for some fields
+Fields like responsibilities, working_hours, depends_on, evidence, and milestones are read together with the parent row 100% of the time and rarely queried independently. JSONB gives us schema flexibility without join cost. We add indexed columns when we need to query a JSONB key — but most of these never need that.
+Why soft deletes
+Anything Selmen has touched should not disappear. If a task is cancelled six months later, we want to be able to look back and see what happened. Soft delete (deleted_at) means we filter at query time but never lose history.
+Why agent_actions_log is loosely-coupled
+The log uses (entity_type, entity_id) instead of a hard FK so that we can log actions on entities that may later be hard-deleted, on entities that span multiple tables (e.g. a 'briefing' isn't a single row), or on system-level actions with no entity at all. The tradeoff is no referential integrity on this column — that's fine because the log is append-only history, not an authoritative pointer.
+Migration strategy
+Drizzle generates migrations from the schema TypeScript file. Every change to the schema produces a new versioned migration. Migrations are applied to staging first, validated, then applied to production. Never edit production schema by hand. The Build Environment Setup Guide (Document 03) covers the migration workflow in detail.
+This schema is the foundation. Once it's in place, every phase of the build adds capabilities that read from and write to these tables. Keep it stable — schema changes after Phase 2 will be expensive to coordinate.

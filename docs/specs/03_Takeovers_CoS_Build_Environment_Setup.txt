@@ -1,0 +1,527 @@
+TAKEOVERS CHIEF OF STAFF
+Build Environment Setup Guide
+Document 03 of 13
+Local • Staging • Production
+Read this BEFORE writing any agent code
+Version 1.0  •  April 2026
+
+Why This Document Exists First
+Before a single agent feature is built, the build environment must be locked down. The reason is simple: the worst possible bug in this system is not a crash — it is the agent texting Brandon's lawyer something half-formed at 2 AM, or sending Orlando a fake task about fleet repair, or auto-archiving an email from Karina that needed Selmen's eyes.
+Staging exists so every loop in the agent — capture, dispatch, chase, briefing — can be tested end-to-end against fake recipients before a single byte hits a real team member. Feature flags exist so a misbehaving capability can be killed in seconds without a redeploy. Backups exist because the agent's database is Selmen's second brain and losing it is unacceptable.
+If you skip this setup and start building features against production directly, you will burn team trust the first time the agent misfires. Set up the three environments first. Always.
+
+1. The Three Environments
+Environment
+Purpose
+URL
+Who uses it
+Local / Dev
+Where you build and break things
+localhost:3000
+Selmen only
+Staging
+Real deployed version for end-to-end testing with shadow team
+staging.cos.takeoversrentals.com
+Selmen only
+Production
+Live system that talks to real team members
+cos.takeoversrentals.com
+Selmen + agent talking to real team
+1.1 What each environment has independently
+Every environment has its own copy of every external dependency. Nothing is shared except the source code itself.
+	•	Database — separate Postgres instance per environment
+	•	Twilio number — separate phone number for SMS sends, so test messages cannot reach real team
+	•	Gmail OAuth — staging hits a test Gmail account; production hits the real three accounts
+	•	Claude API key — separate keys per environment to track usage and prevent staging tests from blowing prod budget
+	•	Whisper API key — same logic — separate keys
+	•	Environment variables — every secret scoped to its environment, never shared
+	•	n8n instance — if running self-hosted n8n, separate instance per environment
+	•	Storage bucket — separate S3 bucket (or Replit storage) per environment for voice memos and attachments
+The cost of running three environments is real but small — roughly $30-40/month extra for staging beyond what production costs. The cost of NOT running staging is one bad message to a partner. The math is obvious.
+
+2. Repository Structure
+Single GitHub repository: takeovers-cos. Three deployments off the same repo, each pinned to its respective branch.
+2.1 Recommended folder layout
+takeovers-cos/
+├── apps/
+│   ├── web/                  # PWA (React + Vite)
+│   │   ├── src/
+│   │   ├── public/
+│   │   └── vite.config.ts
+│   └── api/                  # Backend (Node + Express)
+│       ├── src/
+│       │   ├── routes/
+│       │   ├── services/     # Twilio, Gmail, Claude, Whisper
+│       │   ├── jobs/         # BullMQ workers
+│       │   ├── lib/          # Utilities
+│       │   └── middleware/
+│       └── package.json
+├── packages/
+│   ├── db/                   # Drizzle schema + migrations
+│   │   ├── schema.ts
+│   │   ├── migrations/
+│   │   └── seed.ts
+│   ├── shared/               # Types shared between web and api
+│   └── ai/                   # Claude prompts, agent logic
+├── docs/                     # All 13 reference docs go here
+├── n8n/                      # Exported n8n workflow JSON
+├── scripts/                  # Setup, deploy, backup scripts
+├── .env.example              # Template for env vars (NEVER commit real .env)
+├── .gitignore
+├── docker-compose.yml        # For local Postgres + Redis
+├── package.json              # Workspace root
+└── README.md
+2.2 Why a monorepo
+PWA, API, database schema, and shared types all evolve together. A monorepo means a schema change ships in the same commit as the API code that uses it and the PWA code that displays it. Use pnpm workspaces or npm workspaces — pnpm is faster but either works.
+2.3 What goes in /docs
+Drop all 13 documents from this set into the /docs folder of the repo. The agent itself can later be pointed at this folder via GitHub API to ground its own decisions in its own architecture. This is the reference Selmen uploads on Day 1 of the build.
+
+3. Git Workflow
+3.1 Branch model
+	•	main — production. Auto-deploys to cos.takeoversrentals.com. Protected: never push directly. PRs only.
+	•	staging — staging environment. Auto-deploys to staging.cos.takeoversrentals.com. PRs from feature branches merge here first.
+	•	feature/* — work in progress. e.g. feature/voice-capture, feature/email-drafts, feature/escalation-logic.
+3.2 Daily workflow
+	•	Start a feature: create a branch off staging — git checkout staging && git pull && git checkout -b feature/whatever
+	•	Build it locally. Run against your local Postgres + Redis.
+	•	Push the branch. Open a PR to staging.
+	•	Replit auto-deploys staging when the PR is merged. Test the feature on staging.cos.takeoversrentals.com against the shadow team.
+	•	Once staging passes, open a PR from staging to main. Merge.
+	•	Replit auto-deploys main to production. Watch the logs for 15 minutes. Done.
+3.3 Commit hygiene
+	•	Conventional commits: feat:, fix:, chore:, docs:, refactor:, test:
+	•	Never commit .env files (gitignored by default)
+	•	Never commit secrets — even in test/seed data, use placeholders
+	•	Squash-merge PRs to main to keep history clean
+3.4 Branch protection rules (set on GitHub)
+	•	main: require PR review (self-review acceptable since you're the only dev), require staging deploy to succeed, require status checks passing
+	•	staging: require PR (no direct push), allow self-merge
+
+4. Environment Variables
+Every secret is an env var. Nothing is hard-coded. Nothing is committed. Replit's secrets manager holds production and staging values; local development uses a gitignored .env file.
+4.1 Required environment variables
+Variable
+Purpose
+Per Environment?
+NODE_ENV
+development | staging | production
+Yes
+DATABASE_URL
+Postgres connection string
+Yes — different DBs
+REDIS_URL
+Redis for BullMQ queues
+Yes
+ANTHROPIC_API_KEY
+Claude API access
+Yes — separate keys
+OPENAI_API_KEY
+Whisper transcription
+Yes
+TWILIO_ACCOUNT_SID
+Twilio account ID
+Same across envs
+TWILIO_AUTH_TOKEN
+Twilio auth
+Same across envs
+TWILIO_AGENT_NUMBER
+The dedicated SMS number for the agent
+Yes — different numbers
+GMAIL_OAUTH_CLIENT_ID
+Google OAuth app client ID
+Same across envs
+GMAIL_OAUTH_CLIENT_SECRET
+Google OAuth secret
+Same across envs
+GMAIL_REDIRECT_URI
+OAuth callback URL
+Yes — env-specific URL
+CLERK_SECRET_KEY
+PWA auth (or Auth0 equivalent)
+Yes — separate apps
+CLERK_PUBLISHABLE_KEY
+PWA auth public key
+Yes
+GITHUB_PAT
+GitHub personal access token (read-only)
+Same across envs
+S3_BUCKET
+Storage for voice memos
+Yes — different buckets
+S3_ACCESS_KEY
+AWS access key
+Yes
+S3_SECRET_KEY
+AWS secret
+Yes
+ENCRYPTION_KEY
+Key for encrypting OAuth refresh tokens at rest
+Yes — different keys
+WEBHOOK_SECRET
+HMAC secret for n8n webhook auth
+Yes
+SENTRY_DSN
+Error tracking (optional but recommended)
+Yes
+BASE_URL
+Public URL of this environment
+Yes
+4.2 .env.example file
+Commit a .env.example to the repo with all variable names and placeholder values. This documents what's needed without exposing real secrets:
+# .env.example - safe to commit
+NODE_ENV=development
+DATABASE_URL=postgresql://user:pass@localhost:5432/cos_dev
+REDIS_URL=redis://localhost:6379
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=...
+TWILIO_AGENT_NUMBER=+1305...
+# ... etc
+4.3 Loading env vars per environment
+	•	Local: .env file in repo root, loaded via dotenv on app start
+	•	Staging: Replit secrets, scoped to the staging deployment
+	•	Production: Replit secrets, scoped to the production deployment
+ENCRYPTION_KEY must NEVER change in production once data is written, or all stored OAuth refresh tokens become unrecoverable. Generate it once, store it in Replit secrets, never rotate without a planned re-encryption migration.
+
+5. The Shadow Team
+Staging needs fake versions of every real team member, so the agent can dispatch tasks, send follow-ups, and trigger escalations end-to-end without any real team member ever receiving a test message.
+5.1 Setup
+Create a separate set of contacts for staging. Three options for the receiving end:
+	•	Use Google Voice numbers (free, multiple numbers per Google account, easy to set up)
+	•	Use a few personal SIM cards on cheap phones if you have them lying around
+	•	Use your own number with the contact name prefixed TEST- so messages thread separately
+The simplest and most realistic: get 4-5 Google Voice numbers, label them TEST-Oscar, TEST-Nick, TEST-Brandon, TEST-Orlando, TEST-Karina. Forward those to your phone. The agent in staging routes to those numbers.
+5.2 Shadow team in the database
+Seed the staging database's team_members table with the same names and roles as production, but with the test phone numbers and emails. Same structure, different recipients. The code is identical — only the data differs.
+5.3 Test email account
+For email testing in staging, set up a Gmail account like cos-test@takeoversrentals.com (or use a Gmail alias). Connect that account via OAuth in staging. Real production accounts (sel@, selmen@yourmusicmanager.com, soselman@gmail.com) are only ever connected to production.
+This setup adds about a day to project kickoff. It saves you from one bad deploy that costs you team trust forever. The math is unambiguous.
+
+6. Feature Flags
+Feature flags are the surgical rollback mechanism. Every agent capability sits behind a flag. Flags live in the feature_flags table (defined in Document 02) and have a UI toggle in the PWA settings.
+6.1 Flag-driven rollout pattern
+When you ship a new agent capability, you ship the code with the flag OFF. You verify it deploys without error, then flip the flag in production. If it misbehaves, you flip the flag OFF and the capability is instantly disabled — no redeploy, no downtime, no rollback commits.
+6.2 Code pattern
+In the API code, every flag-gated capability is wrapped:
+// services/dispatch.ts
+import { isEnabled } from '@/lib/flags';
+
+export async function dispatchTask(task) {
+  if (!await isEnabled('auto_dispatch_internal_team')) {
+    // Flag is off — drop to draft mode regardless of tier
+    return queueForApproval(task);
+  }
+  // Flag on — proceed with autonomous dispatch
+  return sendTask(task);
+}
+6.3 Initial seed flags (also documented in Schema doc)
+Flag
+Default
+What it controls
+auto_dispatch_internal_team
+OFF initially
+Tier A SMS/email autonomous dispatch
+auto_followup_nudge_1
+OFF initially
+24-hour soft nudge
+auto_followup_nudge_2
+OFF initially
+48-hour firm nudge
+auto_email_archive
+ON
+Newsletter/receipt auto-archive
+auto_email_reply_internal
+OFF initially
+Auto-reply to internal team pings
+auto_email_reply_personal
+OFF (always)
+Personal account autonomy — always off
+weekly_insights_run
+ON
+Weekly Opus pattern run
+monthly_strategy_run
+ON
+Monthly cross-pattern Opus run
+github_repo_read
+ON
+Pull repo context on tech tasks
+drive_file_access
+OFF (Phase 7)
+Google Drive access
+All Tier A flags should default to OFF when the system first goes live. Flip them on one at a time as you gain confidence. The first 30 days of production should run in mostly-Tier-B mode by default.
+
+7. Database Migrations
+Drizzle ORM handles schema management. Every schema change becomes a versioned migration file checked into git.
+7.1 Workflow
+	•	Edit packages/db/schema.ts to add/change a table or column
+	•	Generate migration: pnpm drizzle-kit generate
+	•	Review the generated SQL in packages/db/migrations/
+	•	Commit both the schema change AND the migration file in the same commit
+	•	Apply to local: pnpm drizzle-kit migrate
+	•	Push branch, merge to staging — staging auto-runs migrations on deploy
+	•	Verify staging works as expected with new schema
+	•	Merge staging to main — production auto-runs migrations
+7.2 Migration safety rules
+NEVER edit a production database schema by hand. NEVER. Every schema change is a migration file. This is non-negotiable because it's the only way to keep all three environments synchronized.
+	•	Migrations are forward-only in production. No automatic rollback.
+	•	If a migration breaks production, write a new forward migration that fixes it.
+	•	For destructive changes (dropping columns, removing tables), do them in two phases: first stop writing to the column in code (deploy), then drop the column in a later migration after confirming no code references it.
+	•	Backup production before any migration that touches existing data.
+7.3 Initial migration
+Phase 1 will produce the initial migration that creates all 17 tables and 21 enums. Run it once against each environment's empty database. From that point forward, every schema evolution is incremental.
+
+8. Backups
+8.1 What needs backing up
+	•	Postgres production database — everything. This is Selmen's second brain.
+	•	S3 storage bucket — voice memos, email attachments. Less critical but valuable.
+	•	n8n workflow exports — checked into the /n8n folder of the repo. Version controlled with code.
+	•	Replit secrets — manually exported and stored in 1Password (or similar) every quarter.
+8.2 Postgres backup schedule
+	•	Daily automated dump → S3 (or Replit's backup service) → retained 30 days rolling
+	•	Weekly snapshot → retained 90 days
+	•	Monthly snapshot → retained 12 months
+8.3 Backup script
+A simple cron-driven script in /scripts handles it. Replit can run this on a schedule:
+#!/bin/bash
+# scripts/backup-db.sh
+
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+BACKUP_FILE="cos-prod-${TIMESTAMP}.sql.gz"
+
+pg_dump $DATABASE_URL | gzip > /tmp/$BACKUP_FILE
+
+aws s3 cp /tmp/$BACKUP_FILE s3://takeovers-cos-backups/daily/
+rm /tmp/$BACKUP_FILE
+
+# Cleanup: delete backups older than 30 days from daily/
+aws s3 ls s3://takeovers-cos-backups/daily/ \
+  | awk '{print $4}' | head -n -30 \
+  | xargs -I{} aws s3 rm s3://takeovers-cos-backups/daily/{}
+8.4 Recovery procedure
+Document the recovery procedure now, while the system is healthy. You don't want to be reading documentation for the first time during a real outage.
+	•	Identify which backup to restore from (check timestamp)
+	•	Download backup: aws s3 cp s3://takeovers-cos-backups/daily/[file] .
+	•	Decompress: gunzip [file]
+	•	Spin up a fresh Postgres instance (do NOT restore over production directly)
+	•	Restore: psql $NEW_DB_URL < [file]
+	•	Verify the restored data is intact (recent tasks, threads, messages)
+	•	Update DATABASE_URL in Replit secrets to point at the restored DB
+	•	Redeploy. Monitor.
+8.5 Backup restore drill
+Once a quarter, do a fire-drill: restore a recent backup to a temporary Postgres instance and verify the system runs against it. This catches backup corruption or schema drift before a real outage.
+
+9. Replit Deployment Configuration
+9.1 Two Replit deployments off one repo
+Replit supports multiple deployments from the same repository. Configure two:
+	•	takeovers-cos-staging → tracks the staging branch → deploys to staging.cos.takeoversrentals.com
+	•	takeovers-cos-prod → tracks the main branch → deploys to cos.takeoversrentals.com
+9.2 Auto-deploy hooks
+Each Replit deployment is connected via GitHub webhook. On push to its tracked branch, Replit pulls, builds, runs migrations, and restarts the service. Build command and start command are defined in the repo's package.json scripts.
+9.3 Build and start scripts
+// package.json (root)
+{
+  "scripts": {
+    "build": "pnpm -r build",
+    "build:web": "pnpm --filter web build",
+    "build:api": "pnpm --filter api build",
+    "db:migrate": "pnpm --filter db migrate",
+    "start": "pnpm db:migrate && pnpm --filter api start",
+    "dev": "pnpm -r --parallel dev"
+  }
+}
+9.4 Health check endpoint
+The API exposes /health which Replit polls. Returns 200 if Postgres, Redis, and core services are reachable; 500 otherwise. Replit auto-restarts if /health fails repeatedly.
+// apps/api/src/routes/health.ts
+router.get('/health', async (req, res) => {
+  try {
+    await db.execute('SELECT 1');
+    await redis.ping();
+    res.json({ status: 'ok', timestamp: new Date() });
+  } catch (e) {
+    res.status(500).json({ status: 'error', error: e.message });
+  }
+});
+9.5 Custom domain setup
+	•	Buy or use existing takeoversrentals.com domain
+	•	In Replit deployment settings, add custom domain cos.takeoversrentals.com (production)
+	•	Replit shows you a CNAME record to add to your DNS
+	•	Add the CNAME at your domain registrar (e.g. GoDaddy, Cloudflare)
+	•	Wait 10-30 minutes for propagation
+	•	Repeat for staging.cos.takeoversrentals.com pointing at the staging deployment
+	•	Replit auto-provisions SSL certificates via Let's Encrypt
+
+10. Local Development Setup
+Step-by-step for Day 1 of building. Run these once.
+10.1 Prerequisites
+	•	Node 20+ installed (use nvm to manage versions)
+	•	pnpm installed: npm install -g pnpm
+	•	Docker Desktop installed (for local Postgres + Redis)
+	•	Git configured with your GitHub credentials
+10.2 Initial setup commands
+# Clone the repo
+git clone https://github.com/[your-org]/takeovers-cos.git
+cd takeovers-cos
+
+# Install dependencies
+pnpm install
+
+# Start local Postgres + Redis
+docker-compose up -d
+
+# Copy env template and fill in
+cp .env.example .env
+# (edit .env with your local API keys)
+
+# Run database migrations
+pnpm db:migrate
+
+# Seed initial data (team members, principal, feature flags)
+pnpm db:seed
+
+# Start everything in dev mode
+pnpm dev
+
+# PWA: http://localhost:3000
+# API: http://localhost:3001
+10.3 docker-compose.yml for local services
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: cos
+      POSTGRES_PASSWORD: cos
+      POSTGRES_DB: cos_dev
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  redis:
+    image: redis:7
+    ports:
+      - '6379:6379'
+volumes:
+  postgres_data:
+
+11. Monitoring & Observability
+You need to know when the agent is misbehaving without having to read every log entry.
+11.1 What to monitor
+	•	API health (uptime, response times, error rates)
+	•	Background job queue depth (if BullMQ is backing up, follow-ups will be late)
+	•	Twilio send failures (network issues, throttling, invalid numbers)
+	•	Gmail API errors (token expiry, rate limits)
+	•	Claude API errors (timeouts, rate limits, malformed responses)
+	•	Override rate (% of agent actions that Selmen edits or rejects — sudden spike means agent quality is dropping)
+11.2 Recommended tools
+	•	Sentry — free tier covers everything you need. Catches all uncaught exceptions, ranks by frequency. Set up on Day 1.
+	•	Replit's built-in logs — real-time stdout/stderr from the API. Sufficient for the first few months.
+	•	Insights tab dashboard — the Learning loop already tracks override rate. Surface it in the Insights tab so you see weekly trends.
+	•	BullMQ board — an admin route that shows queue health. Auth-gated to Selmen only.
+11.3 Critical alerts (push to Selmen via SMS)
+These need to wake you up. Configure them as immediate SMS alerts to Selmen's phone:
+	•	Production API down for more than 60 seconds
+	•	Database connection lost
+	•	Twilio webhook failing repeatedly (means inbound team responses aren't being captured)
+	•	Gmail OAuth refresh failed (means email integration is broken)
+	•	Claude API down or repeatedly erroring
+11.4 Non-critical observations (surface in PWA Insights tab)
+	•	Override rate trending up week-over-week
+	•	Specific team member's response time degrading
+	•	Cost spike on Claude API
+	•	Storage bucket approaching size limit
+
+12. Pre-Launch Security Checklist
+Run through this before flipping any production flag from OFF to ON. Print it, check it off.
+12.1 Secrets
+	•	All API keys live only in Replit secrets and local .env (gitignored)
+	•	ENCRYPTION_KEY is generated, stored in Replit secrets, backed up to 1Password
+	•	OAuth refresh tokens are encrypted at rest using ENCRYPTION_KEY before insert
+	•	WEBHOOK_SECRET is set and validated on inbound n8n webhooks
+	•	No secret has ever been committed to git (run git log -p | grep -i 'sk-' to verify)
+12.2 Auth
+	•	PWA requires login (Clerk or Auth0)
+	•	2FA enabled on Selmen's PWA account
+	•	Session timeout configured (30 days max)
+	•	API endpoints require auth except /health and webhook receivers
+	•	Webhook receivers validate HMAC signatures
+12.3 Network
+	•	HTTPS enforced (Let's Encrypt via Replit, no HTTP fallback)
+	•	CORS configured to allow only the PWA's origin
+	•	Rate limiting on public endpoints (e.g. login, OAuth callbacks)
+12.4 Data
+	•	Database is in a private Replit instance, not publicly accessible
+	•	Postgres uses SSL connections
+	•	S3 bucket has private ACL, no public access
+	•	Backups are encrypted at rest
+12.5 Code
+	•	Dependencies up to date (pnpm audit shows 0 high/critical)
+	•	No console.log of sensitive data (tokens, OAuth codes, message contents in error paths)
+	•	Error messages to PWA don't leak stack traces in production
+	•	All user input that hits Claude is rate-limited per user (no infinite voice memo loop)
+Run this checklist before going live. Run it again every 90 days. Security is not a one-time setup — it's a habit.
+
+13. The Go-Live Sequence
+When Phase 1 is built and tested in staging, here's the order to go live in production.
+13.1 The week before
+	•	Run the security checklist (Section 12)
+	•	Run a full backup restore drill
+	•	Verify all production secrets are set in Replit
+	•	Verify production Twilio number is provisioned and tested with a manual SMS
+	•	Verify production Gmail OAuth connections are working for all three accounts
+	•	Confirm cos.takeoversrentals.com DNS is set and SSL is provisioned
+13.2 Launch day
+	•	Merge staging → main, watch the deploy
+	•	Run the migrations against production (auto-runs on deploy)
+	•	Seed production with the real team_members data
+	•	Log into the production PWA, verify the Today tab loads
+	•	Send a test message to yourself via the production agent number — verify it routes correctly
+	•	Verify all feature flags are OFF (default state)
+13.3 First two weeks
+	•	Day 1-3: only Talk and Today tabs active. Verify capture is working. No dispatch, no follow-up, no email.
+	•	Day 4-7: enable email reading (no replies, no archives). Verify the Inbox tab populates correctly.
+	•	Week 2: enable auto_email_archive flag. Verify newsletters get archived as expected. Spot-check 10 archives manually.
+	•	Week 2 end: enable auto_dispatch_internal_team for the lowest-stakes team member first (likely Tahir or Joan). Watch the first few dispatches manually.
+13.4 Progressive rollout
+	•	Week 3: enable dispatch for Oscar, Josh, Orlando
+	•	Week 4: enable dispatch for Nick (with detailed style)
+	•	Week 4: enable auto_followup_nudge_1
+	•	Week 5: enable auto_followup_nudge_2
+	•	Week 6: enable auto_email_reply_internal for low-confidence-threshold replies only
+	•	Beyond week 6: gradual increase in confidence threshold for auto-reply, gradual broadening of dispatch authority
+NEVER turn on multiple flags simultaneously in production. One at a time, with at least 48 hours between flips, so you can attribute any misbehavior to a specific change.
+
+Appendix — Quick Reference
+Common commands
+# Start local dev
+pnpm dev
+
+# Run migrations
+pnpm db:migrate
+
+# Generate new migration after schema change
+pnpm drizzle-kit generate
+
+# Seed local DB
+pnpm db:seed
+
+# Run tests
+pnpm test
+
+# Build for production
+pnpm build
+
+# Backup production DB manually
+./scripts/backup-db.sh
+
+# Restore from backup
+./scripts/restore-db.sh [backup-file]
+URLs to bookmark
+	•	cos.takeoversrentals.com — Production PWA
+	•	staging.cos.takeoversrentals.com — Staging PWA
+	•	github.com/[your-org]/takeovers-cos — Repository
+	•	replit.com/@[your-account] — Replit deployments
+	•	console.anthropic.com — Claude API usage
+	•	console.twilio.com — Twilio messaging logs
+	•	sentry.io — Error tracking
+This document is the operational foundation. Once you've followed it through, you have an environment in which the rest of the build is safe and reversible. Every phase doc that follows assumes this setup is in place.
