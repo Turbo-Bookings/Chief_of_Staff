@@ -29,6 +29,43 @@ Entry format:
 
 ---
 
+## 2026-05-02 (evening) — New Replit project from scratch; hit `helium` Postgres unreachability
+
+**Driver:** Claude (Claude Code on Mac, with Selmen + Replit Shell-Claude collaboration)
+**Branch:** `main` (`8b0e6fb` after PRs #14–17)
+**Phase:** 1 — PWA Shell + Capture (~99% complete; one platform issue away from sign-off)
+
+### Did
+- Created new Replit project `Chief_of_Staff` (`https://replit.com/@selmen2/ChiefofStaff`) imported from GitHub repo to escape the old project's stuck Replit Auth managed-integration injection loop. Confirmed via `printenv` that no `pk_live_*`/`sk_live_*` got auto-injected — Replit Auth is dormant, exactly what we needed.
+- Added 11 secrets to workspace Secrets pane (Twilio, Clerk, Redis, AI proxy). Verified all deploy-time env reachable from workspace.
+- Hit, diagnosed, and fixed four sequential build issues:
+  1. `.replit` had no `run` command → PR #15 added `run`/`build` lines
+  2. `mockup-sandbox/vite.config.ts` threw on missing `PORT` → PR #16 made vite configs env-tolerant
+  3. `cos-pwa/vite.config.ts` had the same throw → also fixed by PR #16
+  4. PR #15's `run` line was silently overriding multi-artifact orchestration (so only api-server ran, cos-pwa static never served, root `/` had no handler) → PR #17 reverted PR #15
+- Diagnosed via Shell-Claude (genuine Claude Code in Shell tab — sidebar Replit Agent stayed unused per prior memory). Shell-Claude found and articulated the multi-artifact-router-vs-top-level-run conflict precisely.
+- Got past the build, into runtime. Initial Redis connection failed with `WRONGPASS` because the token I'd copied from the old project's `printenv` was 1 char short (`gQAAAAAA` should be `gQAAAAAAA` — 9 A's not 8). Fixed by reading the true value from Upstash console and updating the secret.
+- Server reached pid 19 and started responding to requests, but `/healthz` returned 503. Autoscale rolled the deploy after enough 503s.
+- Shell-Claude diagnosed the final blocker: workspace `DATABASE_URL` points at `helium` host (auto-provisioned by `postgresql-16` module). `helium` only resolves in the workspace network namespace, not in Autoscale deploy containers. The deployed api-server's pg `pool.connect()` throws `EAI_AGAIN` (DNS failure) → healthz `postgres: error` → 503. This is a Replit-platform fact: workspace Postgres is workspace-only.
+
+### Decided
+- Stop trying to make the workspace `helium` Postgres reachable from deploys. We need a public-hostname Postgres.
+- Defer choice between Option A (Neon DB + finish on Replit) and Option B (migrate to Render) to the next session. Claude's recommendation was Option B for durability — every blocker we've fixed in two days has been Replit-platform-specific, and Phases 2-7 will surface more. Option A is faster (~1h) if we just want Phase 1 today.
+
+### Deferred
+- Pick A vs B and execute first thing next session.
+- Provision Neon Postgres (https://neon.tech, free, ~5 min) — needed for either option.
+- Phase 1 sign-off blocked on the above.
+- Old Replit project (`Chief-Of-Staff`) is still up but auth-broken — abandon, don't use.
+
+### Blockers
+- `helium`-vs-public-Postgres unreachability (the only remaining one).
+
+### Next
+- See CURRENT.md "Resume protocol" — one decision (A vs B), then ~1-2h of executable work to ship Phase 1.
+
+---
+
 ## 2026-05-02 (afternoon) — Clerk auth chase; identified Replit-Auth integration override loop
 
 **Driver:** Claude (Claude Code on Mac) with Selmen
