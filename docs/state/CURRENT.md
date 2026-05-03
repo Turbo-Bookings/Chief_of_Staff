@@ -2,97 +2,100 @@
 
 > Single source of truth for "where are we right now." Update at the end of every session. Read first at the start of every session.
 
-**Last updated:** 2026-05-02 (afternoon — after marathon Clerk auth debug)
+**Last updated:** 2026-05-02 (evening — after building a new Replit project from scratch, hit a network-namespace Postgres issue, paused for the day)
 **Updated by:** Claude (Claude Code on Mac, with Selmen)
 
 ---
 
-## TL;DR
+## TL;DR for next session
 
-**Phase 1 is functional at the data layer.** SMS capture works (verified — task "Do payroll by 5pm tomorrow" is in production DB). Code on GitHub `main` (commit `716f4bf`) is correct: PWA `App.tsx` has `ClerkApiAuthBridge` wiring Bearer tokens, api-server `app.ts` has `authorizedParties`, all GitHub PRs merged.
+**Phase 1 code is correct.** App.tsx has Bearer-token bridge, api-server has authorizedParties, all GitHub PRs through #17 merged on `main` at commit `8b0e6fb`.
 
-**Phase 1 is BROKEN at the auth-verification layer due to a Replit platform behavior.** The "Replit Auth" managed integration re-injects its own `pk_live_*` / `sk_live_*` (from a Replit-owned Clerk app `tender-hippo-62`, instance `ins_3D6yK87...`) into the production deployment on every Republish, overwriting the TurboBookings keys (instance `ins_3D9TSR...`) we set manually. Result: server can't verify JWTs the frontend signs → 302 redirect with `jwk-kid-mismatch`.
+**Production deploy still doesn't work** — but for a different (and final) reason than yesterday. Today we built a brand-new Replit project, escaped yesterday's Clerk-injection loop, fixed 4 build issues, but hit one last platform issue: **the workspace's auto-injected `DATABASE_URL` points at `helium`, which is a Replit dev-only hostname unreachable from Autoscale deploy containers**. The api-server runs but its `/healthz` postgres check fails → Autoscale rolls the deploy.
 
-We've verified everything else works. The Bearer token IS sent, App.tsx has the bridge, the new bundle deploys correctly. **The blocker is purely the Replit-managed Clerk-app override loop.**
+**Decision waiting:** Provision a public-hostname Postgres (Neon, free) and either:
+- **Option A — keep Replit:** put Neon URL in Replit production deployment secrets, push schema, Republish. ~1 hour. Phase 1 ships, but Replit's quirks will likely surface again in Phase 2-7.
+- **Option B — migrate to Render:** ~1.5-2 hours. Removes the entire class of Replit-platform pain we've spent two days on. Render deploys from `git push origin main` cleanly, no workspace drift, no auto-injected managed integrations.
 
-Selmen is at the gym deciding between:
-- **A — New Replit project from GitHub** (~1.5h): clone repo into fresh project, decline auto-Auth integration on setup. If Replit doesn't auto-spawn the integration, all our keys stick and we ship Phase 1.
-- **B — Migrate to Render** (~3-4h): durable answer if Replit insists on re-spawning the integration. GitHub-connected, no managed-integration weirdness.
+Claude's recommendation in the last session was **Option B** for durability; Option A if you absolutely want Phase 1 done today.
 
 ## Phase
 
-**Phase 1 — PWA Shell + Capture** (Doc 04). ~98% complete. Only the Clerk-key-injection loop blocks sign-off.
+**Phase 1 — PWA Shell + Capture** (Doc 04). 99% complete. Code-side: done. Deploy-side: blocked on choosing Postgres provider + finishing one of the two options above.
 
 ## What works (verified)
 
-- Production DB has principal_talk thread + 11+ messages including the SMS captures
-- Twilio webhook → SMS capture pipeline ran end-to-end (messageId=18, task "Do payroll by 5pm tomorrow" created)
-- PWA loads, Clerk JS loads, sign-in via Google works
-- PWA's `customFetch` attaches `Authorization: Bearer <token>` (verified in DevTools network — header is present on `/api/threads/principal`)
-- New PWA bundle deploys correctly when workspace is force-synced (`index-B2Ir7c9B.js`, contains the `ClerkApiAuthBridge` code)
-- `/api/threads/principal` returns 200 when JWT is verified by the correct Clerk instance (verified via in-browser fetch test)
+- All Phase 1 code in `main` at `8b0e6fb`:
+  - PWA `App.tsx` includes `ClerkApiAuthBridge` that attaches Clerk JWT as `Authorization: Bearer <token>` on every API call.
+  - api-server `app.ts` has `authorizedParties: [API_BASE_URL]` in clerkMiddleware.
+  - Hardcoded TurboBookings publishable key in App.tsx.
+  - vite configs default `PORT`/`BASE_PATH` so build doesn't crash without dev env.
+  - `.replit` is back to clean multi-artifact orchestration (PR #17 reverted PR #15's overrides).
+- Bearer-token approach was live-verified earlier today on the OLD project — `/api/threads/principal` returned **200** with header set, **302** without. So the auth path is sound; we just need a deploy that reaches healthy state.
+- Twilio webhook capture pipeline ran end-to-end yesterday — task "Do payroll by 5pm tomorrow" was created in DB.
+- `pnpm install && pnpm -r build` passes cleanly from a fresh checkout (verified by Replit Shell-Claude in the new project today). Both api-server's `dist/index.mjs` and cos-pwa's `dist/public/index.html` build successfully.
 
-## What's broken — the loop we couldn't escape on Replit
+## New Replit project state
 
-- Replit's "Replit Auth" managed integration owns a Clerk app it auto-provisioned for this project (`tender-hippo-62`, instance `ins_3D6yK87IE4ElHrkNwkItiwRnl94`)
-- It exposes that app's `pk_live_*` and `sk_live_*` as production deployment env vars
-- **Every Republish re-injects those values**, overwriting any manual edits to `CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` in the production secrets pane
-- We confirmed this happens by: setting them to TurboBookings values → Publishing → them reverting to Replit-managed values within minutes
+- URL: `https://replit.com/@selmen2/ChiefofStaff` (note: hyphen-less compared to old `Chief-Of-Staff`)
+- Future deploy URL: `https://chiefof-staff-selmen2.replit.app`
+- 11 secrets added to workspace Secrets pane:
+  - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_AGENT_NUMBER` (`+17864774367`), `PRINCIPAL_PHONE` (`+17862238995`)
+  - `REDIS_URL` (Upstash takeovers-cos — value rechecked from Upstash console; the version we copied from old project's printenv was missing one `A` character)
+  - `CLERK_PUBLISHABLE_KEY` (`pk_test_cHJv...JA`), `CLERK_SECRET_KEY` (`sk_test_JpGn...P8`)
+  - `AI_INTEGRATIONS_ANTHROPIC_API_KEY` / `_BASE_URL` and `_OPENAI_API_KEY` / `_BASE_URL` (Replit AI proxy at `localhost:1106`)
+- **Replit Auth managed integration is dormant** — confirmed by checking workspace env (no `pk_live_*` or `sk_live_*` auto-injected). This is the key thing that's better than the old project.
+- Workspace Postgres auto-provisioned at `helium` from `modules = ["postgresql-16"]`. **This is the unfixable-on-its-own piece — see "What's broken" below.**
 
-## What was tried and why it didn't stick
+## What's broken
 
-| Attempt | Result |
-|---|---|
-| Set production secrets to TurboBookings values, Publish | Worked briefly, then reverted on next Republish |
-| `git reset --hard origin/main` in workspace + Republish | New PWA bundle deployed correctly (B2Ir7c9B), but server secrets re-injected back to Replit-managed |
-| Click "Delete Clerk app" in Replit Auth Configure tab | Click landed but no confirmation surfaced; unclear if it took effect; even if it did, history suggests Replit re-spawns the integration |
+| # | Issue | Severity | Notes |
+|---|-------|----------|-------|
+| 1 | **Production deploy can't reach Postgres** | **Blocker** | Workspace `DATABASE_URL` points at `helium` host, which only exists in workspace network namespace. Autoscale deploy container DNS-fails on `helium`. `/healthz` postgres check returns `error` → 503 → Autoscale rolls deploy. Fix: provision Neon or use Replit's own "Database" tool option that gives a public-hostname URL. Then put it in production deployment secrets (NOT workspace Secrets — keep workspace pointing at helium for fast dev). |
 
-## Key facts a fresh-project setup needs
+That's the only outstanding blocker. Everything else is solved.
 
-- Repo: `Turbo-Bookings/Chief_of_Staff`, branch `main` at `716f4bf` (after merging PR #13)
-- Hardcoded Clerk publishable key in `App.tsx`: `pk_test_cHJvbW90ZWQtZWxlcGhhbnQtODcuY2xlcmsuYWNjb3VudHMuZGV2JA` (TurboBookings, dev — public, safe to commit)
-- TurboBookings Clerk app id: `app_3D9TSOc7uIoneXKqpXooJU3JMRJ`, instance `ins_3D9TSRuyZ5a7di30NqyhPwSGKD3`, frontend API `https://promoted-elephant-87.clerk.accounts.dev`
-- Production DB rows we don't want to lose: `principal` row (clerk_user_id `user_3D9cJIzib5nhFiIGVAgvOAGhbiL`), `messages` thread + 11+ messages including SMS captures, the "Do payroll by 5pm tomorrow" task
+## Today's PRs merged to main
 
-## Secrets that need transferring to a new project (~12)
+| # | Branch | What it did |
+|---|---|---|
+| 14 | chore/state-handoff-after-replit-debug | Captured yesterday's auth-302 debugging |
+| 15 | fix/replit-deploy-build-config | Added `run`/`build` to `.replit` — turned out to be wrong, see #17 |
+| 16 | fix/vite-config-env-defaults | Defaulted PORT/BASE_PATH in cos-pwa + mockup-sandbox vite configs so build works without dev env (proper fix for the original issue PR #15 was trying to address) |
+| 17 | fix/restore-multiartifact-deploy | Reverted PR #15's `run`/`build` lines because they overrode the multi-artifact router orchestration. Replit's `router = "application"` model uses three `.replit-artifact/artifact.toml` files (api-server serves /api, cos-pwa serves /, mockup-sandbox dev-only). PR #15's top-level run= silently disabled this, so cos-pwa never started. |
 
-- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_AGENT_NUMBER` (`+17864774367`)
-- `PRINCIPAL_PHONE` (`+17862238995`)
-- `REDIS_URL` (Upstash `takeovers-cos`, us-east-1)
-- `DATABASE_URL` + Postgres `PG*` vars (or move DB to Neon/Supabase)
-- `CLERK_PUBLISHABLE_KEY` = `pk_test_cHJvbW90ZWQtZWxlcGhhbnQtODcuY2xlcmsuYWNjb3VudHMuZGV2JA`
-- `CLERK_SECRET_KEY` = `sk_test_JpGnVSRegdDEW95Ur1ILDMW63sPvCoYrcF90N0LsP8` (TurboBookings — rotate after sign-off per OPEN_QUESTIONS)
-- `VITE_CLERK_PUBLISHABLE_KEY` = same pk_test value as above (or skip — App.tsx has it hardcoded)
-- `API_BASE_URL` = the new project's deployment URL once known
-- `AI_INTEGRATIONS_*` for Anthropic/OpenAI (Replit AI proxy endpoints)
-- `DEFAULT_OBJECT_STORAGE_BUCKET_ID`, `PUBLIC_OBJECT_SEARCH_PATHS`, `PRIVATE_OBJECT_DIR`
+`main` is at `8b0e6fb` after PR #17.
 
-## Critical setup gates for new Replit project
+## Production deploy secrets (Replit)
 
-1. **When importing the GitHub repo, decline any "Auth" integration prompt.** If Replit asks "Set up authentication?" → say no.
-2. **After import, open Tools → Integrations and verify "Replit Auth" is NOT under "Replit managed."** If it is, delete it before doing anything else.
-3. **Then transfer secrets, point Twilio webhook at new URL, hit Republish, smoke-test SMS.**
+When we resume on Option A, we need to reach **Publishing → Adjust settings → Production app secrets** in the new Replit project and:
+- Add `DATABASE_URL` = `<the Neon URL we'll provision>`
+- Add anything else missing — but the workspace Secrets values (Twilio, Clerk, Redis, AI) appear to propagate to deployment in this Replit setup.
 
-If at any point Replit auto-spawns the Auth integration anyway, that's the signal to migrate to Render instead.
+## Sensitive values currently in conversation transcript (rotate after Phase 1 sign-off)
+
+- Twilio Auth Token
+- Upstash Redis token
+- Clerk Secret Key (`sk_test_*`)
+
+(Same list as before — nothing new added today.)
+
+## Resume protocol for next session
+
+1. `cd /Users/selmen/Chief_of_Staff && git fetch && git pull`
+2. Read this CURRENT.md
+3. Read the latest SESSION_LOG.md entry (2026-05-02 evening)
+4. Decide: Option A (finish on Replit, ~1h) or Option B (migrate to Render, ~2h). Claude's recommendation was Option B.
+5. Either way, **first concrete step is "provision Neon Postgres"** (https://neon.tech, free, 5 min). The connection string will be `postgresql://...@ep-xxx.neon.tech/neondb?sslmode=require`.
+6. From there:
+   - **Option A**: Put Neon URL in Publishing → Adjust settings → Production app secrets in `https://replit.com/@selmen2/ChiefofStaff`. Then `DATABASE_URL="<neon>" pnpm --filter @workspace/db run push` from workspace shell. Republish.
+   - **Option B**: Sign up Render, connect GitHub repo, set env vars, deploy. Update Twilio webhook to new URL.
 
 ## Environments
 
 | Env | URL | Branch | Status |
 |-----|-----|--------|--------|
 | Local | `localhost:3000` (PWA) / `:8080` (API) | feature/* | Working |
-| Staging | _not yet wired_ | `staging` | Branch exists; no deployment |
-| Production (current Replit) | `https://chief-of-staff-selmen2.replit.app` | `main` | Functional at data layer; auth blocked at verification |
-
-## Next concrete actions (when Selmen returns)
-
-1. Decide: new Replit project (Option A) vs. Render migration (Option B).
-2. If A: create new Replit project from `Turbo-Bookings/Chief_of_Staff` repo. Decline Auth integration on import. Transfer the ~12 secrets above. Point Twilio webhook at new URL. Republish.
-3. If B: write `render.yaml`, push as a branch, connect Render to the repo, transfer secrets there.
-4. Verify `/api/threads/principal` returns 200 with the principal_talk thread.
-5. Update `docs/state/` and declare Phase 1 sign-off.
-
-## Sensitive values currently in conversation transcript (rotate after Phase 1 sign-off)
-
-- `TWILIO_AUTH_TOKEN`
-- Upstash Redis token
-- `CLERK_SECRET_KEY` (sk_test_*)
+| New Replit project (workspace dev) | n/a | n/a | Working — workspace Postgres `helium` reachable |
+| New Replit deploy | `https://chiefof-staff-selmen2.replit.app` (will be) | `main` | **Not live yet** — last deploy attempt rolled back due to Postgres healthz failure |
+| Old Replit deploy | `https://chief-of-staff-selmen2.replit.app` | `main` | Still up but auth broken from yesterday's loop. Don't use. |
